@@ -1,108 +1,105 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { auth, db } from "@/app/lib/firebase";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { collection, addDoc, query, orderBy, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
+import AuthModal from "@/app/components/AuthModal";
+import GiveawayCard from "@/app/components/GiveawayCard";
+import styles from "@/app/components/Hub.module.css";
 
-// Estructura del Post
-interface Post {
+interface Reply {
   id: string;
   authorId: string;
   authorName: string;
   authorPhoto: string;
   content: string;
   createdAt: number;
-  likedBy: string[]; // <-- Arreglado: Array para guardar quién dio like
+}
+interface Post extends Reply { likedBy: string[] }
+
+function Avatar({ name, photo }: { name: string; photo?: string | null }) {
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  return <span className={styles.avatar}>{photo && photo !== failedPhoto ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={photo} alt={name} width={36} height={36} loading="lazy" onError={() => setFailedPhoto(photo)} />
+  ) : name.slice(0, 2).toUpperCase()}</span>;
 }
 
-// ------------------------------------------------------------------
-// COMPONENTE PARA LOS COMENTARIOS (RESPUESTAS)
-// ------------------------------------------------------------------
-function CommentSection({ postId, user, hasProfile }: { postId: string, user: User | null, hasProfile: boolean }) {
-  const [comments, setComments] = useState<any[]>([]);
+function renderContent(text: string) {
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, index) => {
+    if (!/^https?:\/\//i.test(part)) return <span key={index}>{part}</span>;
+    let url: URL;
+    try { url = new URL(part); } catch { return <span key={index}>{part}</span>; }
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const videoId = host === "youtu.be" ? url.pathname.slice(1) : ["youtube.com", "m.youtube.com"].includes(host) ? url.searchParams.get("v") || url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1] : null;
+    if (videoId && /^[\w-]{11}$/.test(videoId)) {
+      return <div key={index} className={styles.video}><iframe loading="lazy" src={`https://www.youtube-nocookie.com/embed/${videoId}`} title="Video compartido en la comunidad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div>;
+    }
+    return <a key={index} href={url.href} target="_blank" rel="noopener noreferrer">{part}</a>;
+  });
+}
+
+function timeAgo(timestamp: number) {
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return "hace un momento";
+  if (seconds < 3600) return `hace ${Math.floor(seconds / 60)} min`;
+  if (seconds < 86400) return `hace ${Math.floor(seconds / 3600)} h`;
+  return new Date(timestamp).toLocaleDateString("es", { day: "numeric", month: "short" });
+}
+
+async function authorData(user: User) {
+  const snapshot = await getDoc(doc(db, "users", user.uid));
+  const data = snapshot.data();
+  return {
+    authorId: user.uid,
+    authorName: data?.displayName || user.displayName || "Usuario",
+    authorPhoto: data?.photoURL || user.photoURL || "",
+  };
+}
+
+function CommentSection({ postId, user, hasProfile, onLogin }: { postId: string; user: User | null; hasProfile: boolean; onLogin: () => void }) {
+  const [comments, setComments] = useState<Reply[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isSending, setIsSending] = useState(false);
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   useEffect(() => {
-    // Escuchar comentarios en tiempo real desde Firestore
-    const q = query(collection(db, "posts", postId, "comments"), orderBy("createdAt", "asc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setComments(fetched);
-    });
-    return () => unsubscribe();
+    return onSnapshot(query(collection(db, "posts", postId, "comments"), orderBy("createdAt", "asc")), (snapshot) => {
+      setComments(snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Reply));
+      setLoading(false);
+    }, () => { setError("No pudimos cargar las respuestas. Inténtalo nuevamente."); setLoading(false); });
   }, [postId]);
 
-  const handleSendReply = async () => {
-    if (!newComment.trim()) return;
-    if (!user) return alert("Inicia sesión para comentar.");
-    if (!hasProfile) return alert("Completa tu perfil para comentar.");
-
+  async function sendReply() {
+    if (!newComment.trim() || !user || !hasProfile || isSending) return;
     setIsSending(true);
+    setError("");
     try {
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.data();
-
-      await addDoc(collection(db, "posts", postId, "comments"), {
-        authorId: user.uid,
-        authorName: userData?.displayName || user.displayName || "Usuario",
-        authorPhoto: userData?.photoURL || user.photoURL || "",
-        content: newComment.trim(),
-        createdAt: Date.now()
-      });
+      await addDoc(collection(db, "posts", postId, "comments"), { ...await authorData(user), content: newComment.trim(), createdAt: Date.now() });
       setNewComment("");
-    } catch (error) {
-      console.error("Error al responder:", error);
-    } finally {
-      setIsSending(false);
-    }
-  };
+    } catch { setError("Tu respuesta no se pudo publicar. Inténtalo nuevamente."); }
+    finally { setIsSending(false); }
+  }
 
-  return (
-    <div className="mt-4 pt-4 border-t border-neutral-800/50 flex flex-col gap-4 bg-[#16171e] -mx-5 -mb-5 p-5 rounded-b-2xl">
-      {/* Lista de comentarios */}
-      <div className="flex flex-col gap-3">
-        {comments.length === 0 && <p className="text-xs text-[#6c7083]">No hay respuestas aún. ¡Sé el primero!</p>}
-        {comments.map((comment) => (
-          <div key={comment.id} className="flex gap-3">
-            <img src={comment.authorPhoto || "https://via.placeholder.com/30"} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-neutral-700" />
-            <div className="bg-[#1a1b26] p-3 rounded-2xl rounded-tl-none w-full border border-neutral-800">
-              <Link href={`/usuario/${comment.authorId}`} className="text-[13px] font-bold text-white hover:underline block mb-1">
-                {comment.authorName}
-              </Link>
-              <p className="text-[14px] text-neutral-300">{comment.content}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Input para nuevo comentario */}
-      <div className="flex gap-3 items-center mt-2">
-        <input 
-          type="text"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Escribe una respuesta..."
-          className="flex-grow bg-[#1a1b26] border border-neutral-800 text-sm text-white rounded-full px-4 py-2 focus:outline-none focus:border-cyan-500"
-        />
-        <button 
-          onClick={handleSendReply}
-          disabled={!newComment.trim() || isSending}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white rounded-full p-2 disabled:opacity-50 transition-colors"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-        </button>
-      </div>
-    </div>
-  );
+  return <section className={styles.comments} aria-label="Respuestas">
+    {error && <p role="alert" className={styles.error}>{error}</p>}
+    {loading ? <p className={styles.panelNote}>Cargando respuestas…</p> : comments.length === 0 && <p className={styles.panelNote}>Abre la conversación. Todavía no hay respuestas.</p>}
+    {comments.map((reply) => <div key={reply.id} className={styles.comment}>
+      <Avatar name={reply.authorName} photo={reply.authorPhoto} />
+      <div className={styles.commentBody}><Link href={`/usuario/${reply.authorId}`}>{reply.authorName}</Link><p>{reply.content}</p></div>
+    </div>)}
+    {!user ? <button className={styles.smallButton} onClick={onLogin}>Iniciar sesión para responder</button> : !hasProfile ? <Link href="/perfil" className={styles.smallButton}>Completar mi perfil</Link> : (
+      <form className={styles.replyForm} onSubmit={(event) => { event.preventDefault(); void sendReply(); }}>
+        <label className={styles.srOnly} htmlFor={`reply-${postId}`}>Tu respuesta</label>
+        <input id={`reply-${postId}`} value={newComment} onChange={(event) => setNewComment(event.target.value)} placeholder="Escribe una respuesta…" maxLength={2000} disabled={isSending} />
+        <button className={styles.smallButton} disabled={!newComment.trim() || isSending}>{isSending ? "Enviando…" : "Responder"}</button>
+      </form>
+    )}
+  </section>;
 }
 
-// ------------------------------------------------------------------
-// PÁGINA PRINCIPAL DE COMUNIDAD
-// ------------------------------------------------------------------
 export default function ComunidadPage() {
   const [user, setUser] = useState<User | null>(null);
   const [hasProfile, setHasProfile] = useState(false);
@@ -110,229 +107,103 @@ export default function ComunidadPage() {
   const [newPost, setNewPost] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(true);
-  
-  // Estado para saber qué post tiene la caja de comentarios abierta
   const [activeCommentPost, setActiveCommentPost] = useState<string | null>(null);
+  const [tab, setTab] = useState("all");
+  const [error, setError] = useState("");
+  const [authOpen, setAuthOpen] = useState(false);
+  const pendingLikes = useRef(new Set<string>());
+  const [busyLikes, setBusyLikes] = useState<string[]>([]);
 
   useEffect(() => {
+    let active = true;
+    let version = 0;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      const currentVersion = ++version;
       setUser(currentUser);
-      if (currentUser) {
-        const userRef = doc(db, "users", currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists() && userSnap.data().bio) {
-          setHasProfile(true);
-        }
-      }
+      setHasProfile(false);
+      if (!currentUser) return;
+      try {
+        const profile = await getDoc(doc(db, "users", currentUser.uid));
+        if (active && currentVersion === version) setHasProfile(Boolean(profile.exists() && profile.data().bio));
+      } catch { if (active && currentVersion === version) setError("No pudimos cargar tu perfil. Vuelve a intentarlo."); }
     });
-    return () => unsubscribe();
+    return () => { active = false; unsubscribe(); };
   }, []);
 
-  const fetchPosts = async () => {
+  async function fetchPosts() {
     try {
-      const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const fetchedPosts: Post[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        fetchedPosts.push({ id: doc.id, likedBy: [], ...data } as unknown as Post);
-      });
-      setPosts(fetchedPosts);
-    } catch (error) {
-      console.error("Error cargando publicaciones:", error);
-    } finally {
-      setLoadingPosts(false);
-    }
-  };
+      const snapshot = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
+      setPosts(snapshot.docs.map((item) => {
+        const data = item.data();
+        return { ...data, id: item.id, likedBy: Array.isArray(data.likedBy) ? data.likedBy : [] } as Post;
+      }));
+    } catch { setError("No pudimos cargar las publicaciones. Recarga la página para intentarlo nuevamente."); }
+    finally { setLoadingPosts(false); }
+  }
+  useEffect(() => { void fetchPosts(); }, []);
 
-  useEffect(() => { fetchPosts(); }, []);
-
-  const handlePublish = async () => {
-    if (!newPost.trim() || !user) return;
-    if (!hasProfile) return alert("Debes completar tu perfil para publicar.");
-
+  async function handlePublish() {
+    if (!newPost.trim() || !user || !hasProfile || isPublishing) return;
     setIsPublishing(true);
+    setError("");
     try {
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.data();
-
-      await addDoc(collection(db, "posts"), {
-        authorId: user.uid,
-        authorName: userData?.displayName || user.displayName || "Usuario",
-        authorPhoto: userData?.photoURL || user.photoURL || "",
-        content: newPost.trim(),
-        createdAt: Date.now(),
-        likedBy: [], // Array vacío de likes al crear
-      });
-      
+      const data = { ...await authorData(user), content: newPost.trim(), createdAt: Date.now(), likedBy: [] };
+      const post = await addDoc(collection(db, "posts"), data);
+      setPosts((previous) => [{ ...data, id: post.id }, ...previous]);
       setNewPost("");
-      fetchPosts();
-    } catch (error) {
-      console.error("Error al publicar:", error);
-    } finally {
-      setIsPublishing(false);
-    }
-  };
+    } catch { setError("Tu publicación no se pudo guardar. Inténtalo nuevamente."); }
+    finally { setIsPublishing(false); }
+  }
 
-  // NUEVO: Función para dar "Me gusta"
-  const handleLike = async (postId: string, likedBy: string[]) => {
-    if (!user) return alert("Debes iniciar sesión para dar me gusta.");
-    
-    const postRef = doc(db, "posts", postId);
-    const hasLiked = likedBy.includes(user.uid);
+  async function handleLike(post: Post) {
+    if (!user) { setAuthOpen(true); return; }
+    if (pendingLikes.current.has(post.id)) return;
+    const uid = user.uid;
+    const hadLiked = post.likedBy.includes(uid);
+    pendingLikes.current.add(post.id);
+    setBusyLikes((previous) => [...previous, post.id]);
+    const applyLike = (items: Post[], liked: boolean) => items.map((item) => item.id !== post.id ? item : { ...item, likedBy: liked ? Array.from(new Set([...item.likedBy, uid])) : item.likedBy.filter((id) => id !== uid) });
+    setPosts((previous) => applyLike(previous, !hadLiked));
+    try { await updateDoc(doc(db, "posts", post.id), { likedBy: hadLiked ? arrayRemove(uid) : arrayUnion(uid) }); }
+    catch { setPosts((previous) => applyLike(previous, hadLiked)); setError("No pudimos guardar tu me gusta. Inténtalo nuevamente."); }
+    finally { pendingLikes.current.delete(post.id); setBusyLikes((previous) => previous.filter((id) => id !== post.id)); }
+  }
 
-    // 1. Actualización visual instantánea
-    setPosts(posts.map(p => {
-      if (p.id === postId) {
-        return { ...p, likedBy: hasLiked ? p.likedBy.filter(id => id !== user.uid) : [...(p.likedBy || []), user.uid] };
-      }
-      return p;
-    }));
-
-    // 2. Actualización en Firebase
-    try {
-      await updateDoc(postRef, {
-        likedBy: hasLiked ? arrayRemove(user.uid) : arrayUnion(user.uid)
-      });
-    } catch (error) {
-      console.error("Error al actualizar like:", error);
-    }
-  };
-
-  // NUEVO: Magia para detectar links y videos de YouTube
-  const renderContent = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const parts = text.split(urlRegex);
-
-    return parts.map((part, index) => {
-      if (part.match(urlRegex)) {
-        const ytMatch = part.match(ytRegex);
-        if (ytMatch && ytMatch[1]) {
-          // Es YouTube! Retornamos el reproductor de video
-          return (
-            <div key={index} className="w-full aspect-video mt-3 mb-3 rounded-xl overflow-hidden border border-neutral-800 shadow-lg">
-              <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${ytMatch[1]}`} title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
-            </div>
-          );
-        }
-        // Es un link normal (Twitch, Kick, etc)
-        return (
-          <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-cyan-400 font-medium hover:underline hover:text-cyan-300 break-all">
-            {part}
-          </a>
-        );
-      }
-      return <span key={index}>{part}</span>;
-    });
-  };
-
-  const timeAgo = (timestamp: number) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return "hace un momento";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `hace ${minutes} min`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `hace ${hours} h`;
-    return `hace ${Math.floor(hours / 24)} días`;
-  };
+  const visiblePosts = posts.filter((post) => tab === "all" || (tab === "videos" ? /https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(post.content) : /sorteo|ticket|ps5|premio/i.test(post.content)));
 
   return (
-    <main className="w-full max-w-4xl mx-auto p-4 md:p-8 flex flex-col gap-6 relative z-10 font-sans">
-      
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-3xl">💬</span>
-        <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight">Comunidad</h1>
-      </div>
-      
-      <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-4 shadow-lg flex gap-4">
-        <div className="w-12 h-12 rounded-full bg-[#1e2029] flex-shrink-0 overflow-hidden border border-neutral-700">
-          {user?.photoURL ? <img src={user.photoURL} alt="Tú" className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xl">😎</span>}
-        </div>
-        <div className="flex-grow flex flex-col gap-3">
-          <textarea 
-            rows={3}
-            placeholder={user ? "¿Qué estás pensando? Pega un enlace de YouTube para compartir un video..." : "Inicia sesión para participar en la comunidad."}
-            disabled={!user}
-            value={newPost}
-            onChange={(e) => setNewPost(e.target.value)}
-            className="w-full bg-transparent text-white placeholder-[#6c7083] focus:outline-none resize-none text-[15px]"
-          />
-          <div className="flex justify-end pt-2 border-t border-neutral-800/50">
-            <button onClick={handlePublish} disabled={isPublishing || !newPost.trim() || !user} className="px-6 py-2 rounded-full bg-pink-600 hover:bg-pink-500 text-white font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              {isPublishing ? "Publicando..." : "Publicar"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4 mt-4">
-        {loadingPosts ? (
-          <div className="text-center text-[#6c7083] py-10">Cargando la comunidad...</div>
-        ) : posts.length > 0 ? (
-          posts.map((post) => {
-            const isLiked = user && (post.likedBy || []).includes(user.uid);
-            const likeCount = (post.likedBy || []).length;
-            
-            return (
-              <div key={post.id} className="bg-[#121319] border border-neutral-800 rounded-2xl p-5 shadow-lg transition-colors hover:border-neutral-700">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <Link href={`/usuario/${post.authorId}`}>
-                      <img src={post.authorPhoto || "https://via.placeholder.com/40"} alt={post.authorName} className="w-10 h-10 rounded-full object-cover border border-neutral-700 hover:opacity-80" />
-                    </Link>
-                    <div className="flex flex-col">
-                      <Link href={`/usuario/${post.authorId}`} className="text-[15px] font-bold text-white hover:underline">{post.authorName}</Link>
-                      <span className="text-[12px] text-[#6c7083]">{timeAgo(post.createdAt)}</span>
-                    </div>
-                  </div>
+    <div className={styles.page}>
+      <div className={styles.shell}>
+        <div className={styles.topline}><span>GTA6HUB / Comunidad</span><Link href="/sorteos">Ver sorteo ↗</Link></div>
+        <header className={styles.communityHeader}><div><p className={styles.eyebrow}>La crew de GTA VI</p><h1 className={styles.pageTitle}>Nos vemos en Vice City.</h1><p className={styles.subtitle}>Teorías, clips y conversaciones mientras llega nuestra próxima gran partida.</p></div><span className={styles.communityMarker}>[ COMUNIDAD DE FANS ]</span></header>
+        <div className={styles.mobilePromo}><div><strong>PS5 + GTA VI</strong><span>SORTEO · TICKETS DESDE $3 USD</span></div><Link href="/sorteos#tickets">Ver tickets ↗</Link></div>
+        <div className={styles.communityGrid}>
+          <section className={styles.feed} aria-label="Muro de la comunidad">
+            <article className={styles.pinned}><span className={styles.pinMark} aria-hidden="true">↗</span><div><p className={styles.eyebrow}>GTA6HUB / Destacado</p><h2>La próxima consola podría ser tuya.</h2><p>Tenemos un sorteo de PS5 + GTA VI para la comunidad. Revisa los paquetes y sigue las novedades aquí. Y tú, ¿qué harías primero al llegar a Vice City?</p><Link href="/sorteos#tickets">Ver el sorteo y elegir tickets →</Link></div></article>
+            <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void handlePublish(); }}>
+              <div className={styles.composerTop}><Avatar name={user?.displayName || "G6"} photo={user?.photoURL} /><label htmlFor="new-post" className={styles.srOnly}>Escribe tu publicación</label><textarea id="new-post" rows={3} maxLength={5000} value={newPost} onChange={(event) => setNewPost(event.target.value)} disabled={!user || !hasProfile || isPublishing} placeholder={!user ? "Tu crew está aquí. Inicia sesión y entra en la conversación." : !hasProfile ? "Completa tu perfil y presenta a tu personaje." : "¿Una teoría? ¿Un clip? ¿Tu primera misión en GTA VI?"} /></div>
+              <div className={styles.composerBottom}><span>{newPost.length > 0 ? `${newPost.length} / 5000` : "Comparte también enlaces de YouTube."}</span>{!user ? <button type="button" className={styles.smallButton} onClick={() => setAuthOpen(true)}>Iniciar sesión</button> : !hasProfile ? <Link className={styles.smallButton} href="/perfil">Crear perfil</Link> : <button className={styles.smallButton} disabled={isPublishing || !newPost.trim()}>{isPublishing ? "Publicando…" : "Publicar ↗"}</button>}</div>
+            </form>
+            {error && <p role="alert" className={styles.error}>{error}</p>}
+            <div className={styles.feedTools}><div className={styles.tabs} aria-label="Filtrar publicaciones">{[{ id: "all", label: "El muro" }, { id: "videos", label: "Videos" }, { id: "giveaway", label: "Sorteo" }].map((item) => <button key={item.id} type="button" className={tab === item.id ? styles.activeTab : ""} aria-pressed={tab === item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}</div><span className={styles.feedCount}>{visiblePosts.length} posts</span></div>
+            {loadingPosts ? <div role="status" className={styles.empty}><p>Cargando la comunidad…</p></div> : visiblePosts.length === 0 ? <div className={styles.empty}><h3>{tab === "all" ? "La ciudad empieza contigo." : "Todavía no hay publicaciones aquí."}</h3><p>{tab === "all" ? "Comparte tu primera teoría o cuéntanos qué esperas de GTA VI." : "Abre la conversación con un video o una pregunta sobre el sorteo."}</p></div> : visiblePosts.map((post) => {
+              const liked = Boolean(user && post.likedBy.includes(user.uid));
+              return <article key={post.id} className={styles.post}>
+                <div className={styles.postHeader}><Link href={`/usuario/${post.authorId}`} aria-label={`Perfil de ${post.authorName}`}><Avatar name={post.authorName} photo={post.authorPhoto} /></Link><div><Link href={`/usuario/${post.authorId}`}>{post.authorName}</Link><time dateTime={new Date(post.createdAt).toISOString()}>{timeAgo(post.createdAt)}</time></div></div>
+                <div className={styles.postContent}>{renderContent(post.content)}</div>
+                <div className={styles.postActions}>
+                  <button type="button" className={liked ? styles.liked : ""} aria-pressed={liked} aria-label={`${liked ? "Quitar" : "Dar"} me gusta a la publicación de ${post.authorName}`} disabled={busyLikes.includes(post.id)} onClick={() => void handleLike(post)}><svg viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /></svg>{post.likedBy.length || "Me gusta"}</button>
+                  <button type="button" aria-expanded={activeCommentPost === post.id} onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" /></svg>Responder</button>
                 </div>
-
-                {/* Contenido Renderizado Mágicamente */}
-                <p className="text-white text-[15px] leading-relaxed mb-4 whitespace-pre-wrap">
-                  {renderContent(post.content)}
-                </p>
-
-                {/* Botones de Interacción (Like, Responder) */}
-                <div className="flex items-center gap-6 pt-3 border-t border-neutral-800/50">
-                  <button 
-                    onClick={() => handleLike(post.id, post.likedBy || [])}
-                    className={`flex items-center gap-2 transition-colors group text-sm font-semibold ${isLiked ? 'text-pink-500' : 'text-[#6c7083] hover:text-pink-500'}`}
-                  >
-                    <div className={`p-1.5 rounded-full ${isLiked ? 'bg-pink-500/10' : 'group-hover:bg-pink-500/10'}`}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                    </div>
-                    <span>{likeCount > 0 ? likeCount : 'Me gusta'}</span>
-                  </button>
-                  
-                  <button 
-                    onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)}
-                    className="flex items-center gap-2 text-[#6c7083] font-semibold hover:text-cyan-400 transition-colors group text-sm"
-                  >
-                    <div className="p-1.5 rounded-full group-hover:bg-cyan-400/10">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                    </div>
-                    <span>Responder</span>
-                  </button>
-                </div>
-
-                {/* Mostrar Comentarios si este post está activo */}
-                {activeCommentPost === post.id && (
-                  <CommentSection postId={post.id} user={user} hasProfile={hasProfile} />
-                )}
-
-              </div>
-            );
-          })
-        ) : (
-          <div className="text-center py-12 bg-[#121319] border border-neutral-800 rounded-2xl">
-            <span className="text-4xl block mb-3">👻</span>
-            <h3 className="text-white font-bold text-lg">La ciudad está muy tranquila...</h3>
-          </div>
-        )}
+                {activeCommentPost === post.id && <CommentSection postId={post.id} user={user} hasProfile={hasProfile} onLogin={() => setAuthOpen(true)} />}
+              </article>;
+            })}
+          </section>
+          <aside className={styles.communityAside}><GiveawayCard /><div className={styles.asideNotes}><h3>Código de la crew</h3><p>Comparte teorías, respeta a los demás y avisa si tu publicación contiene spoilers.</p><Link href="/sorteos">Premio, paquetes y detalles del sorteo →</Link></div></aside>
+        </div>
+        <footer className={styles.footer}><span>GTA6HUB · Una comunidad de fans. No afiliada a Rockstar Games.</span><Link href="/sorteos">PS5 + GTA VI / Ver sorteo ↗</Link></footer>
       </div>
-
-    </main>
+      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+    </div>
   );
 }
