@@ -8,6 +8,11 @@ import styles from "./Home.module.css";
 
 interface PreviewPost { id: string; author: string; content: string; createdAt: number | null }
 
+function previewText(content: string) {
+  const text = content.replace(/https?:\/\/[^\s]+/g, (url) => /https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(url) ? "▶ Video compartido" : "↗ Enlace compartido");
+  return text.length > 170 ? `${text.slice(0, 170)}…` : text;
+}
+
 export default function HomeCommunity() {
   const [posts, setPosts] = useState<PreviewPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +31,6 @@ export default function HomeCommunity() {
 
   return <div className={styles.messageGrid}>{posts.map((post) => <Link href={`/comunidad#post-${post.id}`} key={post.id} className={styles.messageCard}>
     <div className={styles.messageHeader}><span className={styles.messageAvatar} aria-hidden="true">{post.author.slice(0, 2).toUpperCase()}</span><div><strong>{post.author}</strong><span>{post.createdAt !== null ? new Date(post.createdAt).toLocaleDateString("es-CL", { day: "numeric", month: "short" }) : "En el muro"}</span></div><span className={styles.messageArrow} aria-hidden="true">↗</span></div>
-    <p>{post.content.length > 170 ? `${post.content.slice(0, 170)}…` : post.content}</p><span className={styles.messageLink}>Ver conversación</span>
+    <p>{previewText(post.content)}</p><span className={styles.messageLink}>Ver conversación</span>
   </Link>)}</div>;
 }
