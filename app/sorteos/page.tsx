@@ -1,194 +1,151 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Image from "next/image";
-// Importamos tu configuración de Firebase
-import { db } from "@/app/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { useState } from "react";
+
+const PACKAGES = [
+  { id: "basic", name: "Pase Básico", tickets: 1, price: 3, note: "Para probar tu suerte", accent: "border-white/10", button: "bg-white/5 hover:bg-white/10" },
+  { id: "double", name: "Pase Doble", tickets: 2, price: 5, note: "Más oportunidades por menos", accent: "border-cyan-400/70 ring-1 ring-cyan-400/20", button: "bg-cyan-400 text-slate-950 hover:bg-cyan-300", popular: true },
+  { id: "legend", name: "Pase Leyenda", tickets: 5, price: 10, note: "El mejor precio por ticket", accent: "border-white/10", button: "bg-white/5 hover:bg-white/10" },
+];
 
 export default function SorteosPage() {
-  // Estados para la barra de progreso en tiempo real
-  const [ticketsSold, setTicketsSold] = useState(0);
-  const totalTickets = 1000; // Meta de tickets a vender
+  const [selectedId, setSelectedId] = useState("double");
+  const [showNotice, setShowNotice] = useState(false);
+  const selectedPackage = PACKAGES.find((item) => item.id === selectedId) ?? PACKAGES[1];
 
-  // Escuchar en tiempo real la cantidad de tickets vendidos desde Firebase
-  useEffect(() => {
-    // Asumimos que crearás un documento llamado "estado" dentro de la colección "sorteos"
-    const docRef = doc(db, "sorteos", "estado");
-    
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setTicketsSold(docSnap.data().vendidos || 0);
-      }
-    }, (error) => {
-      console.error("Error leyendo tickets:", error);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Cálculo del porcentaje para la barra
-  const progressPercentage = Math.min((ticketsSold / totalTickets) * 100, 100);
-
-  // Función temporal para los botones de compra (aquí irá Stripe/MercadoPago después)
-  const handlePurchase = (tickets: number, price: number) => {
-    console.log(`Iniciando compra de ${tickets} tickets por $${price} USD...`);
-    alert(`Próximamente: Serás redirigido a la pasarela de pago para comprar ${tickets} tickets por $${price} USD.`);
-  };
+  function handleContinue() {
+    // Aquí debe conectarse la pasarela de pago antes de aceptar cobros reales.
+    setShowNotice(true);
+  }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white pb-20">
-      
-      {/* HEADER / HERO SECTION */}
-      <div className="relative w-full h-[40vh] md:h-[50vh] flex items-center justify-center overflow-hidden border-b border-pink-500/20">
-        {/* Imagen de fondo (Placeholder de consola/gaming) */}
-        <div className="absolute inset-0 opacity-30">
-          <img 
-            src="https://images.unsplash.com/photo-1606813907291-d86efa9b94db?q=80&w=2000&auto=format&fit=crop" 
-            alt="PS5 Background" 
-            className="w-full h-full object-cover"
+    <main className="min-h-screen overflow-hidden bg-[#07090d] text-white">
+      <section className="relative isolate border-b border-white/10">
+        <div className="absolute inset-0 -z-10">
+          <img
+            src="https://images.unsplash.com/photo-1606813907291-d86efa9b94db?q=80&w=2000&auto=format&fit=crop"
+            alt=""
+            className="h-full w-full object-cover object-center opacity-25"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/50"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#07090d] via-[#07090d]/90 to-[#07090d]/55" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#07090d] via-transparent to-[#07090d]/30" />
         </div>
-        
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-10">
-          <span className="bg-pink-500/10 text-pink-400 font-bold px-4 py-1.5 rounded-full text-sm tracking-wider uppercase border border-pink-500/30 mb-4 inline-block">
-            Sorteo Especial Lanzamiento
-          </span>
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-4">
-            Gana una <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-cyan-400">PS5 + GTA VI</span>
-          </h1>
-          <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto">
-            Participa para llevarte la consola de nueva generación y la edición definitiva de Grand Theft Auto VI el día de su lanzamiento.
-          </p>
-        </div>
-      </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20">
-        
-        {/* BARRA DE PROGRESO EN TIEMPO REAL */}
-        <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-6 md:p-8 shadow-2xl shadow-pink-500/5 mb-16">
-          <div className="flex justify-between items-end mb-4">
-            <div>
-              <h3 className="text-xl font-bold text-white mb-1">Tickets Vendidos</h3>
-              <p className="text-sm text-gray-400">El sorteo se realiza al llegar a la meta</p>
+        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-8 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-[1.15fr_.85fr] lg:gap-14 lg:px-12 lg:py-24">
+          <div className="max-w-2xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[.18em] text-cyan-200 sm:text-xs">
+              <span className="h-2 w-2 rounded-full bg-cyan-300" />
+              Sorteo especial gaming
             </div>
-            <div className="text-right">
-              <span className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">
-                {ticketsSold}
-              </span>
-              <span className="text-gray-500 font-medium"> / {totalTickets}</span>
+            <h1 className="text-4xl font-black leading-[.98] tracking-tight sm:text-6xl lg:text-7xl">
+              TU PRÓXIMA
+              <span className="mt-2 block bg-gradient-to-r from-cyan-300 via-sky-400 to-fuchsia-400 bg-clip-text text-transparent">GRAN AVENTURA</span>
+              <span className="mt-2 block">PUEDE EMPEZAR AQUÍ.</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
+              Participa por una experiencia gaming épica. Elige tus tickets en segundos y revisa las condiciones del sorteo antes de participar.
+            </p>
+            <a href="#paquetes" className="mt-8 inline-flex min-h-12 items-center justify-center rounded-xl bg-cyan-300 px-6 py-3 text-sm font-extrabold text-slate-950 shadow-lg shadow-cyan-400/20 transition hover:-translate-y-0.5 hover:bg-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-slate-950">
+              ELEGIR MIS TICKETS <span aria-hidden="true" className="ml-2">↓</span>
+            </a>
+            <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400 sm:text-sm">
+              <span>✓ Paquetes claros</span>
+              <span>✓ Sin límite artificial de tickets</span>
+              <span>✓ Condiciones transparentes</span>
             </div>
           </div>
-          
-          <div className="w-full bg-gray-900 rounded-full h-4 md:h-6 border border-gray-800 overflow-hidden relative">
-            {/* Animación de brillo en la barra */}
-            <div 
-              className="bg-gradient-to-r from-cyan-500 to-pink-500 h-full rounded-full transition-all duration-1000 ease-out relative"
-              style={{ width: `${progressPercentage}%` }}
-            >
-              <div className="absolute inset-0 bg-white/20 w-full h-full animate-pulse"></div>
-            </div>
-          </div>
-          <p className="text-center text-xs text-gray-500 mt-4 uppercase tracking-widest font-semibold">
-            Actualización en tiempo real
-          </p>
-        </div>
 
-        {/* SECCIÓN DE PRECIOS / LLAMADA A LA ACCIÓN */}
-        <div className="text-center mb-10">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Elige tu Paquete de Tickets</h2>
-          <p className="text-gray-400">A mayor cantidad de tickets, más posibilidades tienes de ganar.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-center">
-          
-          {/* Paquete 1: Básico */}
-          <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-8 hover:border-gray-600 transition-colors flex flex-col h-full">
-            <div className="flex-grow">
-              <h3 className="text-xl font-bold text-gray-300 mb-2">Pase Básico</h3>
-              <div className="flex items-baseline gap-2 mb-6">
-                <span className="text-5xl font-extrabold text-white">$3</span>
-                <span className="text-gray-500 font-medium">USD</span>
+          <div className="mx-auto w-full max-w-md lg:ml-auto">
+            <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#11151d]/90 p-3 shadow-2xl shadow-black/40 backdrop-blur sm:p-4">
+              <div className="flex items-center justify-between px-2 pb-3 pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-[.22em] text-slate-400">Premio destacado</span>
+                <span className="rounded-full border border-fuchsia-300/25 bg-fuchsia-300/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-fuchsia-200">Edición gaming</span>
               </div>
-              <ul className="space-y-4 mb-8 text-gray-400">
-                <li className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                  <span>1 Ticket para el sorteo</span>
-                </li>
-              </ul>
-            </div>
-            <button 
-              onClick={() => handlePurchase(1, 3)}
-              className="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold py-4 px-6 rounded-xl transition-colors"
-            >
-              Comprar 1 Ticket
-            </button>
-          </div>
-
-          {/* Paquete 2: Popular (Destacado) */}
-          <div className="bg-[#111] border-2 border-pink-500 rounded-2xl p-8 transform md:-translate-y-4 shadow-2xl shadow-pink-500/10 flex flex-col h-full relative">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-bold px-4 py-1 rounded-full text-sm">
-              MÁS POPULAR
-            </div>
-            <div className="flex-grow mt-2">
-              <h3 className="text-xl font-bold text-pink-400 mb-2">Pase Doble</h3>
-              <div className="flex items-baseline gap-2 mb-6">
-                <span className="text-5xl font-extrabold text-white">$5</span>
-                <span className="text-gray-500 font-medium">USD</span>
+              <div className="relative overflow-hidden rounded-2xl bg-slate-900">
+                <img src="https://images.unsplash.com/photo-1606813907291-d86efa9b94db?q=80&w=1200&auto=format&fit=crop" alt="Consola de videojuegos" className="aspect-[4/3] w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                  <p className="text-xs font-bold uppercase tracking-[.2em] text-cyan-300">Tu próxima aventura</p>
+                  <h2 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">PS5 <span className="text-cyan-300">+</span></h2>
+                  <p className="text-2xl font-extrabold sm:text-3xl">GTA VI</p>
+                  <p className="mt-3 max-w-xs text-xs leading-5 text-slate-300">Consulta el premio exacto, la fecha de cierre y las reglas en las condiciones oficiales.</p>
+                </div>
               </div>
-              <ul className="space-y-4 mb-8 text-gray-300">
-                <li className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                  <span className="font-bold">2 Tickets para el sorteo</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                  <span>Ahorras $1 USD</span>
-                </li>
-              </ul>
-            </div>
-            <button 
-              onClick={() => handlePurchase(2, 5)}
-              className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-pink-500/25"
-            >
-              Comprar 2 Tickets
-            </button>
-          </div>
-
-          {/* Paquete 3: Premium */}
-          <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-8 hover:border-cyan-500/50 transition-colors flex flex-col h-full">
-            <div className="flex-grow">
-              <h3 className="text-xl font-bold text-cyan-400 mb-2">Pase Leyenda</h3>
-              <div className="flex items-baseline gap-2 mb-6">
-                <span className="text-5xl font-extrabold text-white">$10</span>
-                <span className="text-gray-500 font-medium">USD</span>
+              <div className="grid grid-cols-2 gap-3 p-2 pt-4 sm:p-3">
+                <div className="rounded-xl bg-white/[.04] p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Desde</p>
+                  <p className="mt-1 text-2xl font-black">$3 <span className="text-xs font-semibold text-slate-400">USD</span></p>
+                </div>
+                <div className="rounded-xl bg-white/[.04] p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Participación</p>
+                  <p className="mt-1 text-sm font-bold text-cyan-200">Elige tu paquete</p>
+                </div>
               </div>
-              <ul className="space-y-4 mb-8 text-gray-400">
-                <li className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                  <span className="font-bold text-white">5 Tickets para el sorteo</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                  <span>Mejor valor garantizado</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                  <span>Insignia en la comunidad</span>
-                </li>
-              </ul>
             </div>
-            <button 
-              onClick={() => handlePurchase(5, 10)}
-              className="w-full bg-gray-800 hover:bg-cyan-900/50 hover:text-cyan-400 border border-transparent hover:border-cyan-500/50 text-white font-bold py-4 px-6 rounded-xl transition-all"
-            >
-              Comprar 5 Tickets
-            </button>
           </div>
-
         </div>
-      </div>
-    </div>
+      </section>
+
+      <section id="paquetes" className="mx-auto w-full max-w-7xl scroll-mt-6 px-5 py-14 sm:px-8 sm:py-20 lg:px-12">
+        <div className="mx-auto mb-9 max-w-2xl text-center sm:mb-12">
+          <p className="text-xs font-bold uppercase tracking-[.24em] text-cyan-300">Tu participación</p>
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">ELIGE TU PAQUETE</h2>
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-slate-400 sm:text-base sm:leading-7">Selecciona una opción. Puedes cambiarla cuando quieras antes de continuar.</p>
+        </div>
+
+        <div className="mx-auto grid max-w-5xl grid-cols-1 items-stretch gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+          {PACKAGES.map((item) => {
+            const isSelected = selectedId === item.id;
+            return (
+              <article key={item.id} className={`relative flex min-w-0 flex-col rounded-2xl border bg-[#10131a] p-5 transition duration-200 sm:p-6 ${item.accent} ${isSelected ? "shadow-xl shadow-cyan-400/[.07]" : "hover:border-white/25"}`}>
+                {item.popular && <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-cyan-300 to-blue-400 px-4 py-1.5 text-[10px] font-black uppercase tracking-[.12em] text-slate-950">Recomendado</span>}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-extrabold sm:text-xl">{item.name}</h3>
+                    <p className="mt-1 text-sm text-slate-400">{item.note}</p>
+                  </div>
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg ${isSelected ? "border-cyan-300/40 bg-cyan-300/10 text-cyan-200" : "border-white/10 bg-white/[.03] text-slate-300"}`} aria-hidden="true">{item.tickets === 1 ? "◇" : item.tickets === 2 ? "✦" : "✧"}</span>
+                </div>
+                <div className="mt-7 flex items-end gap-2">
+                  <span className="text-5xl font-black tracking-tight">${item.price}</span>
+                  <span className="mb-1 text-xs font-semibold text-slate-500">USD</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-300">{item.tickets} {item.tickets === 1 ? "ticket" : "tickets"} <span className="text-slate-600">·</span> <span className="font-semibold text-slate-200">${(item.price / item.tickets).toFixed(2)} por ticket</span></p>
+                <div className="my-5 h-px bg-white/10" />
+                <ul className="mb-7 space-y-3 text-sm text-slate-300">
+                  <li className="flex gap-2.5"><span className="font-black text-cyan-300">✓</span>{item.tickets} {item.tickets === 1 ? "oportunidad" : "oportunidades"} de participación</li>
+                  <li className="flex gap-2.5"><span className="font-black text-cyan-300">✓</span>Precio total visible antes de pagar</li>
+                  {item.tickets > 1 && <li className="flex gap-2.5"><span className="font-black text-cyan-300">✓</span>Ahorro frente a tickets individuales</li>}
+                </ul>
+                <button type="button" aria-pressed={isSelected} onClick={() => { setSelectedId(item.id); setShowNotice(false); }} className={`mt-auto flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-[#10131a] ${isSelected ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[.04] text-white hover:bg-white/[.09]"}`}>
+                  {isSelected ? "✓ Paquete seleccionado" : "Elegir este paquete"}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="mx-auto mt-7 max-w-5xl rounded-2xl border border-white/10 bg-white/[.03] p-4 sm:mt-8 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-slate-500">Tu selección</p>
+            <p className="mt-1 text-lg font-extrabold">{selectedPackage.tickets} {selectedPackage.tickets === 1 ? "ticket" : "tickets"} <span className="mx-1 text-slate-600">·</span> ${selectedPackage.price} USD</p>
+            <p className="mt-1 text-xs leading-5 text-slate-400">Las participaciones estarán disponibles hasta la fecha de cierre indicada en las condiciones oficiales.</p>
+          </div>
+          <button type="button" onClick={handleContinue} className="mt-4 flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-300 to-sky-400 px-6 py-3 text-sm font-black text-slate-950 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-[#07090d] sm:mt-0 sm:w-auto">
+            CONTINUAR · ${selectedPackage.price} USD <span className="ml-2" aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        {showNotice && <div role="status" className="mx-auto mt-4 max-w-5xl rounded-xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">La selección funciona correctamente, pero la pasarela de pago todavía no está conectada. No se ha realizado ningún cobro. Conecta y prueba el checkout antes de anunciar ventas.</div>}
+      </section>
+
+      <section className="border-t border-white/10 bg-[#0a0c11]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 md:grid-cols-3 lg:px-12">
+          <div><p className="text-sm font-extrabold">¿Cómo funciona?</p><p className="mt-2 text-sm leading-6 text-slate-400">Elige un paquete, revisa las condiciones y completa el proceso de compra cuando el pago esté habilitado.</p></div>
+          <div><p className="text-sm font-extrabold">Sin falsa escasez</p><p className="mt-2 text-sm leading-6 text-slate-400">No mostramos contadores de tickets restantes ni ventas en vivo. Las participaciones se mantienen abiertas hasta la fecha de cierre oficial.</p></div>
+          <div><p className="text-sm font-extrabold">Antes de participar</p><p className="mt-2 text-sm leading-6 text-slate-400">Lee las reglas, requisitos, fecha de cierre, selección del ganador y detalles del premio en las condiciones oficiales.</p><div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-cyan-200"><a className="underline underline-offset-4 hover:text-cyan-100" href="/terminos">Términos y condiciones</a><a className="underline underline-offset-4 hover:text-cyan-100" href="/privacidad">Privacidad</a></div></div>
+        </div>
+      </section>
+    </main>
   );
 }
