@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PrizeArtwork, TICKET_PACKAGES } from "@/app/components/GiveawayCard";
 import styles from "@/app/components/Hub.module.css";
@@ -8,6 +8,10 @@ import styles from "@/app/components/Hub.module.css";
 export default function SorteosPage() {
   const [selectedId, setSelectedId] = useState("double");
   const [showNotice, setShowNotice] = useState(false);
+  useEffect(() => {
+    const packageId = new URLSearchParams(window.location.search).get("paquete");
+    if (TICKET_PACKAGES.some((item) => item.id === packageId)) setSelectedId(packageId!);
+  }, []);
   const selected = TICKET_PACKAGES.find((item) => item.id === selectedId) ?? TICKET_PACKAGES[1];
 
   return (

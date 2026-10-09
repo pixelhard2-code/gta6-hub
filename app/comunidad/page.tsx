@@ -188,7 +188,7 @@ export default function ComunidadPage() {
             <div className={styles.feedTools}><div className={styles.tabs} aria-label="Filtrar publicaciones">{[{ id: "all", label: "El muro" }, { id: "videos", label: "Videos" }, { id: "giveaway", label: "Sorteo" }].map((item) => <button key={item.id} type="button" className={tab === item.id ? styles.activeTab : ""} aria-pressed={tab === item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}</div><span className={styles.feedCount}>{visiblePosts.length} posts</span></div>
             {loadingPosts ? <div role="status" className={styles.empty}><p>Cargando la comunidad…</p></div> : visiblePosts.length === 0 ? <div className={styles.empty}><h3>{tab === "all" ? "La ciudad empieza contigo." : "Todavía no hay publicaciones aquí."}</h3><p>{tab === "all" ? "Comparte tu primera teoría o cuéntanos qué esperas de GTA VI." : "Abre la conversación con un video o una pregunta sobre el sorteo."}</p></div> : visiblePosts.map((post) => {
               const liked = Boolean(user && post.likedBy.includes(user.uid));
-              return <article key={post.id} className={styles.post}>
+              return <article key={post.id} id={`post-${post.id}`} className={styles.post}>
                 <div className={styles.postHeader}><Link href={`/usuario/${post.authorId}`} aria-label={`Perfil de ${post.authorName}`}><Avatar name={post.authorName} photo={post.authorPhoto} /></Link><div><Link href={`/usuario/${post.authorId}`}>{post.authorName}</Link><time dateTime={new Date(post.createdAt).toISOString()}>{timeAgo(post.createdAt)}</time></div></div>
                 <div className={styles.postContent}>{renderContent(post.content)}</div>
                 <div className={styles.postActions}>
