@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     // Permite que Vercel complete el build aunque existan advertencias de TypeScript
     ignoreBuildErrors: true,
   },
+  // @ts-ignore
   eslint: {
     // Evita que los errores de linteo bloqueen la compilación
     ignoreDuringBuilds: true,

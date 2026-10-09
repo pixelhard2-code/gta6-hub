@@ -135,7 +135,7 @@ export default function ComunidadPage() {
       const fetchedPosts: Post[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        fetchedPosts.push({ id: doc.id, likedBy: [], ...data } as Post);
+        fetchedPosts.push({ id: doc.id, likedBy: [], ...data } as unknown as Post);
       });
       setPosts(fetchedPosts);
     } catch (error) {
