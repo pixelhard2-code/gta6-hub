@@ -7,6 +7,8 @@ import { auth, db } from "@/app/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import AuthModal from "@/app/components/AuthModal";
+import DesktopHeader from "@/app/components/DesktopHeader";
+import desktopStyles from "@/app/components/DesktopLayout.module.css";
 
 export default function RootLayout({
   children,
@@ -98,48 +100,15 @@ export default function RootLayout({
         </header>
 
         {/* === NAVBAR ESCRITORIO === */}
-        <nav className="hidden md:flex w-full bg-[#111116] border-b border-gray-800 p-4 items-center justify-between">
-          <div className="flex gap-6 items-center">
-            <Link href="/" className="font-extrabold text-xl tracking-wider text-white">
-              GTA<span className="text-pink-500">6</span>HUB
-            </Link>
-            <Link href="/sorteos" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">
-              Sorteos
-            </Link>
-            <Link href="/comunidad" className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">
-              Comunidad
-            </Link>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            {user ? (
-              <Link href="/perfil" className="flex items-center gap-3 group">
-                <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
-                  {displayNameToShow}
-                </span>
-                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent group-hover:border-pink-500 transition-colors">
-                   {displayPhotoToShow ? (
-                     <img src={displayPhotoToShow} alt="Perfil" className="w-full h-full object-cover" />
-                   ) : (
-                      <div className="w-full h-full bg-gray-800 flex items-center justify-center text-lg font-bold text-gray-400 group-hover:text-white transition-colors">
-                          {displayNameToShow ? displayNameToShow.charAt(0).toUpperCase() : "U"}
-                      </div>
-                   )}
-                </div>
-              </Link>
-            ) : (
-              <button 
-                onClick={() => setIsAuthModalOpen(true)}
-                className="bg-[#f3b5a7] hover:bg-[#f8cbc2] text-[#241820] font-bold py-2 px-6 rounded-md transition-colors text-sm"
-              >
-                Iniciar Sesión
-              </button>
-            )}
-          </div>
-        </nav>
+        <DesktopHeader
+          signedIn={Boolean(user)}
+          displayName={displayNameToShow}
+          photo={displayPhotoToShow || null}
+          onSignIn={() => setIsAuthModalOpen(true)}
+        />
 
         {/* === CONTENIDO PRINCIPAL === */}
-        <main>
+        <main id="site-content" className={desktopStyles.desktopContent} tabIndex={-1}>
           {children}
         </main>
 

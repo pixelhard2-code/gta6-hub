@@ -1,0 +1,70 @@
+/* Mobile continues to use the existing header and bottom navigation. */
+.desktopHeader { display:none; }
+
+@media (min-width:768px) {
+  .desktopHeader {
+    display:block;
+    position:sticky;
+    top:0;
+    z-index:40;
+    width:100%;
+    background:#111116;
+    border-bottom:1px solid #302936;
+    box-shadow:0 4px 18px rgba(0,0,0,.12);
+  }
+  .headerInner {
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    align-items:center;
+    gap:28px;
+    width:100%;
+    max-width:1180px;
+    min-height:80px;
+    margin:0 auto;
+    padding:0 28px;
+  }
+  .desktopHeader :is(a,button):focus-visible { outline:2px solid #f3b5a7; outline-offset:4px; }
+  .brand { display:flex; flex-direction:column; gap:5px; text-decoration:none; color:#f5f1f4; white-space:nowrap; }
+  .brand strong { font-size:23px; font-weight:800; letter-spacing:.01em; line-height:1; }
+  .brand strong span { color:#ecacc9; }
+  .brandCaption { font:8px/1.5 monospace; letter-spacing:.1em; text-transform:uppercase; color:#94869d; }
+  .navigation { display:flex; justify-content:center; align-items:center; gap:5px; min-width:0; }
+  .navItem { display:flex; align-items:center; justify-content:center; gap:9px; min-height:44px; padding:10px 15px; border:1px solid transparent; border-radius:6px; color:#a9a1b3; font-size:12px; font-weight:600; white-space:nowrap; text-decoration:none; transition:color .15s, background-color .15s, border-color .15s; }
+  .navItem svg { flex:none; opacity:.85; }
+  .navItem:hover { color:#f3eaf7; background:#1d1923; }
+  .activeItem { color:#f0c0d4; background:#241b29; border-color:#4c344a; }
+  .activeItem:hover { background:#2b2030; }
+  .actions { display:flex; align-items:center; justify-content:flex-end; gap:16px; }
+  .ticketButton { display:flex; align-items:center; justify-content:center; gap:18px; min-height:42px; padding:10px 18px; background:#f3b5a7; border:1px solid #f3b5a7; border-radius:5px; color:#241820; font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; transition:background-color .15s; }
+  .ticketButton:hover { background:#f8cbc2; }
+  .separator { width:1px; height:24px; background:#352c3c; }
+  .signInButton { min-height:42px; padding:10px 14px; border:1px solid #413648; border-radius:5px; background:transparent; color:#d5c9df; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; transition:background-color .15s, border-color .15s; }
+  .signInButton:hover { background:#211a29; border-color:#725778; }
+  .profile { display:flex; align-items:center; gap:10px; min-height:44px; padding:4px; border-radius:5px; text-decoration:none; color:#eee4f3; }
+  .profile:hover { background:#211a29; }
+  .avatar { display:flex; align-items:center; justify-content:center; width:34px; height:34px; flex:none; border-radius:50%; overflow:hidden; border:1px solid #5b405f; background:#302137; color:#eacbea; font-size:13px; font-weight:700; }
+  .avatar img { width:100%; height:100%; object-fit:cover; }
+  .profileCopy { display:flex; flex-direction:column; gap:4px; min-width:0; max-width:125px; }
+  .profileCopy > span { font-size:9px; color:#a58eae; }
+  .profileCopy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:600; }
+  .skipLink { position:absolute; left:28px; top:8px; z-index:2; padding:12px 16px; background:#f3b5a7; border-radius:5px; color:#241820; font-size:12px; text-decoration:none; clip-path:inset(100%); }
+  .skipLink:focus { clip-path:none; }
+  .desktopContent { min-width:0; min-height:calc(100dvh - 80px); }
+  .desktopContent [id] { scroll-margin-top:100px; }
+  .desktopContent aside, .desktopContent [id="tickets"] { top:104px; }
+}
+
+@media (min-width:768px) and (max-width:1023px) {
+  .headerInner { min-height:72px; padding:0 20px; gap:18px; }
+  .brand strong { font-size:21px; }
+  .brandCaption { display:none; }
+  .navigation { gap:3px; }
+  .navItem { padding:10px 11px; gap:6px; font-size:11px; }
+  .actions { gap:10px; }
+  .ticketButton { padding:10px 13px; gap:10px; font-size:11px; }
+  .signInButton { padding:10px 12px; font-size:11px; }
+  .separator, .profileCopy { display:none; }
+  .desktopContent { min-height:calc(100dvh - 72px); }
+  .desktopContent [id] { scroll-margin-top:90px; }
+  .desktopContent aside, .desktopContent [id="tickets"] { top:96px; }
+}
