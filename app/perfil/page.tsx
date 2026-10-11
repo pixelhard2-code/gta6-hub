@@ -5,12 +5,13 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { auth, googleProvider, db } from "@/app/lib/firebase";
 import { signInWithPopup, signOut } from "firebase/auth";
-import { collection, getDocs, query, limit } from "firebase/firestore";
+import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
 import { readUserProfile, type UserProfile } from "@/app/lib/profiles";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import { ProfileActionError, saveUserProfile } from "@/app/lib/profile-actions";
 import { PROFILE_AVATARS } from "@/app/lib/avatars";
 import ProfileAvatarPicker from "@/app/components/ProfileAvatarPicker";
+import UserListModal from "@/app/components/UserListModal";
 
 export default function PerfilPage() {
   const { user, profile: profileData, loading, error: profileError } = useCurrentUserProfile();
@@ -19,6 +20,11 @@ export default function PerfilPage() {
   // Modales
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [modalType, setModalType] = useState<"followers" | "following" | null>(null);
+
+  // Publicaciones del usuario
+  const [userPosts, setUserPosts] = useState<{ id: string; content: string; createdAt: number; likedBy: string[] }[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   
   const [newUsername, setNewUsername] = useState("");
   const [newBio, setNewBio] = useState("");
@@ -55,6 +61,41 @@ export default function PerfilPage() {
       } catch { if (active) setRecommended([]); }
     };
     void fetchRecommended();
+    return () => { active = false; };
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user) {
+      setUserPosts([]);
+      setLoadingPosts(false);
+      return;
+    }
+    let active = true;
+    setLoadingPosts(true);
+    const fetchMyPosts = async () => {
+      try {
+        const snapshot = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
+        if (active) {
+          const myDocs = snapshot.docs
+            .filter((docItem) => docItem.data().authorId === user.uid)
+            .map((docItem) => {
+              const d = docItem.data();
+              return {
+                id: docItem.id,
+                content: typeof d.content === "string" ? d.content : "",
+                createdAt: typeof d.createdAt === "number" ? d.createdAt : Date.now(),
+                likedBy: Array.isArray(d.likedBy) ? d.likedBy : [],
+              };
+            });
+          setUserPosts(myDocs);
+        }
+      } catch {
+        if (active) setUserPosts([]);
+      } finally {
+        if (active) setLoadingPosts(false);
+      }
+    };
+    void fetchMyPosts();
     return () => { active = false; };
   }, [user?.uid]);
 
@@ -188,14 +229,24 @@ export default function PerfilPage() {
             {notice && <p role="status" className="text-sm text-[#ecacc9] mb-4">{notice}</p>}
             
             <div className="flex gap-8 text-[15px] font-medium mt-4">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-white font-semibold">{profileData?.followers?.length || 0}</span>
-                <span className="text-[#6c7083]">Seguidores</span>
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-white font-semibold">{profileData?.following?.length || 0}</span>
-                <span className="text-[#6c7083]">Siguiendo</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => setModalType("followers")}
+                className="flex flex-col gap-0.5 text-left group cursor-pointer focus:outline-none"
+                title="Ver lista de seguidores"
+              >
+                <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{profileData?.followers?.length || 0}</span>
+                <span className="text-[#6c7083] group-hover:underline">Seguidores</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalType("following")}
+                className="flex flex-col gap-0.5 text-left group cursor-pointer focus:outline-none"
+                title="Ver lista de seguidos"
+              >
+                <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{profileData?.following?.length || 0}</span>
+                <span className="text-[#6c7083] group-hover:underline">Siguiendo</span>
+              </button>
               <div className="flex flex-col gap-0.5 ml-4 border-l border-neutral-800 pl-8">
                 <span className="text-pink-400 font-bold">{profileData?.tickets || 0}</span>
                 <span className="text-[#6c7083]">Tickets de Rifa</span>
@@ -212,6 +263,75 @@ export default function PerfilPage() {
           </div>
           <p className="text-[13px] text-[#6c7083] mb-1">Reputación Total (RP)</p>
           <h3 className="text-[32px] font-bold text-white tracking-tight">{profileData?.reputation || 0}</h3>
+        </div>
+
+        {/* Mis Publicaciones en el Muro */}
+        <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 shadow-lg flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3">
+            <h2 className="text-[15px] font-semibold text-white flex items-center gap-2">
+              <span>Mis Publicaciones</span>
+              <span className="text-xs bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-full font-mono">
+                {userPosts.length}
+              </span>
+            </h2>
+            <Link
+              href="/comunidad#new-post"
+              className="text-xs text-pink-400 hover:text-pink-300 font-semibold"
+            >
+              Nuevo post +
+            </Link>
+          </div>
+
+          {loadingPosts ? (
+            <p className="text-xs text-neutral-500 py-3">Cargando publicaciones...</p>
+          ) : userPosts.length === 0 ? (
+            <div className="py-6 text-center flex flex-col items-center gap-2">
+              <span className="text-2xl">📝</span>
+              <p className="text-sm font-semibold text-neutral-300">Aún no has publicado en el muro</p>
+              <p className="text-xs text-neutral-500 max-w-sm">
+                Comparte tus teorías sobre GTA VI, clips de YouTube o habla sobre el sorteo de la PS5 con la crew.
+              </p>
+              <Link
+                href="/comunidad#new-post"
+                className="mt-2 px-4 py-2 rounded-xl bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/30 text-xs font-bold transition-colors"
+              >
+                Publicar en la comunidad ↗
+              </Link>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {userPosts.map((post) => (
+                <div
+                  key={post.id}
+                  className="p-3.5 rounded-xl bg-[#161720] border border-neutral-800/80 flex flex-col gap-2 hover:border-neutral-700 transition-colors"
+                >
+                  <p className="text-xs text-neutral-200 line-clamp-2 leading-relaxed">
+                    {post.content}
+                  </p>
+                  <div className="flex items-center justify-between text-[11px] text-neutral-500 pt-1 border-t border-neutral-800/50">
+                    <span className="font-mono">
+                      {new Date(post.createdAt).toLocaleDateString("es", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1 text-pink-400">
+                        ♥ {post.likedBy.length}
+                      </span>
+                      <Link
+                        href={`/comunidad#post-${post.id}`}
+                        className="text-pink-300 hover:underline font-semibold"
+                      >
+                        Ver conversación ↗
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -270,6 +390,14 @@ export default function PerfilPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Lista de Usuarios (Seguidores / Siguiendo) */}
+      <UserListModal
+        isOpen={modalType !== null}
+        onClose={() => setModalType(null)}
+        title={modalType === "followers" ? "Seguidores" : "Siguiendo"}
+        userIds={modalType === "followers" ? (profileData?.followers || []) : (profileData?.following || [])}
+      />
     </main>
   );
 }

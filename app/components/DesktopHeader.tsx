@@ -13,13 +13,14 @@ interface DesktopHeaderProps {
 
 const LINKS = [
   { href: "/", label: "Inicio", icon: "home" },
+  { href: "/novedades", label: "Novedades", icon: "news" },
   { href: "/sorteos", label: "Sorteos", icon: "ticket" },
   { href: "/comunidad", label: "Comunidad", icon: "community" },
 ] as const;
 
 function NavIcon({ type }: { type: (typeof LINKS)[number]["icon"] }) {
   return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {type === "home" ? <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h14V9M9 21v-7h6v7" /></> : type === "ticket" ? <><path d="M4 5h16v5a2 2 0 0 0 0 4v5H4v-5a2 2 0 0 0 0-4Z" /><path d="M15 5v3m0 3v2m0 3v3" /></> : <><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" /><path d="M8 11h8m-8 4h5" /></>}
+    {type === "home" ? <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h14V9M9 21v-7h6v7" /></> : type === "news" ? <><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" /><path d="M18 14h-8" /><path d="M15 18h-5" /><path d="M10 6h8v4h-8V6Z" /></> : type === "ticket" ? <><path d="M4 5h16v5a2 2 0 0 0 0 4v5H4v-5a2 2 0 0 0 0-4Z" /><path d="M15 5v3m0 3v2m0 3v3" /></> : <><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" /><path d="M8 11h8m-8 4h5" /></>}
   </svg>;
 }
 

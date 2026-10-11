@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { db } from "@/app/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, collection, getDocs, query, orderBy } from "firebase/firestore";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import { readUserProfile, type UserProfile } from "@/app/lib/profiles";
 import { ProfileActionError, setFollowState } from "@/app/lib/profile-actions";
 import AuthModal from "@/app/components/AuthModal";
+import UserListModal from "@/app/components/UserListModal";
 
 export default function PerfilPublico() {
   const { id: profileId } = useParams<{ id: string }>();
@@ -20,6 +21,9 @@ export default function PerfilPublico() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [needsProfile, setNeedsProfile] = useState(false);
+  const [modalType, setModalType] = useState<"followers" | "following" | null>(null);
+  const [userPosts, setUserPosts] = useState<{ id: string; content: string; createdAt: number; likedBy: string[] }[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   const pendingFollow = useRef(false);
 
   const isOwnProfile = currentUser?.uid === profileId;
@@ -45,6 +49,36 @@ export default function PerfilPublico() {
       setLoading(false);
     });
     return () => { active = false; unsubscribe(); };
+  }, [profileId]);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingPosts(true);
+    const fetchUserPosts = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
+        if (active) {
+          const list = snap.docs
+            .filter((item) => item.data().authorId === profileId)
+            .map((item) => {
+              const d = item.data();
+              return {
+                id: item.id,
+                content: typeof d.content === "string" ? d.content : "",
+                createdAt: typeof d.createdAt === "number" ? d.createdAt : Date.now(),
+                likedBy: Array.isArray(d.likedBy) ? d.likedBy : [],
+              };
+            });
+          setUserPosts(list);
+        }
+      } catch {
+        if (active) setUserPosts([]);
+      } finally {
+        if (active) setLoadingPosts(false);
+      }
+    };
+    void fetchUserPosts();
+    return () => { active = false; };
   }, [profileId]);
 
   const handleFollow = async () => {
@@ -125,14 +159,24 @@ export default function PerfilPublico() {
           {(followError || sessionError) && <div role="alert" className="text-sm text-[#f3b5a7] mb-4"><p>{followError || sessionError}</p>{needsProfile && <Link href="/perfil" className="underline inline-block mt-2">Completar mi perfil →</Link>}</div>}
           
           <div className="flex gap-8 text-[15px] font-medium mt-4">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-white font-semibold">{publicProfile.followers?.length || 0}</span>
-              <span className="text-[#6c7083]">Seguidores</span>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-white font-semibold">{publicProfile.following?.length || 0}</span>
-              <span className="text-[#6c7083]">Siguiendo</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setModalType("followers")}
+              className="flex flex-col gap-0.5 text-left group cursor-pointer focus:outline-none"
+              title="Ver seguidores"
+            >
+              <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{publicProfile.followers?.length || 0}</span>
+              <span className="text-[#6c7083] group-hover:underline">Seguidores</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalType("following")}
+              className="flex flex-col gap-0.5 text-left group cursor-pointer focus:outline-none"
+              title="Ver seguidos"
+            >
+              <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{publicProfile.following?.length || 0}</span>
+              <span className="text-[#6c7083] group-hover:underline">Siguiendo</span>
+            </button>
             <div className="flex flex-col gap-0.5 ml-4 border-l border-neutral-800 pl-8">
               <span className="text-pink-400 font-bold">Nivel {Math.floor((publicProfile.reputation || 0) / 100) + 1}</span>
               <span className="text-[#6c7083]">{publicProfile.reputation || 0} RP</span>
@@ -140,7 +184,79 @@ export default function PerfilPublico() {
           </div>
         </div>
       </div>
+
+      {/* Publicaciones del Usuario en la Comunidad */}
+      <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 shadow-lg flex flex-col gap-4 w-full">
+        <div className="flex items-center justify-between border-b border-neutral-800/60 pb-3">
+          <h2 className="text-base font-semibold text-white flex items-center gap-2">
+            <span>Publicaciones en el Muro</span>
+            <span className="text-xs bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-full font-mono">
+              {userPosts.length}
+            </span>
+          </h2>
+          <Link
+            href="/comunidad"
+            className="text-xs text-pink-400 hover:text-pink-300 font-semibold"
+          >
+            Ir a la comunidad ↗
+          </Link>
+        </div>
+
+        {loadingPosts ? (
+          <p className="text-xs text-neutral-500 py-3">Cargando publicaciones del jugador...</p>
+        ) : userPosts.length === 0 ? (
+          <div className="py-8 text-center flex flex-col items-center gap-2">
+            <span className="text-2xl">🌴</span>
+            <p className="text-sm font-semibold text-neutral-300">Este jugador aún no tiene publicaciones</p>
+            <p className="text-xs text-neutral-500 max-w-sm">
+              Cuando {publicProfile.displayName} publique teorías o mensajes en el muro, aparecerán aquí.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {userPosts.map((post) => (
+              <div
+                key={post.id}
+                className="p-4 rounded-xl bg-[#161720] border border-neutral-800/80 flex flex-col gap-2.5 hover:border-neutral-700 transition-colors"
+              >
+                <p className="text-xs md:text-sm text-neutral-200 line-clamp-3 leading-relaxed">
+                  {post.content}
+                </p>
+                <div className="flex items-center justify-between text-xs text-neutral-500 pt-2 border-t border-neutral-800/50">
+                  <span className="font-mono text-[11px]">
+                    {new Date(post.createdAt).toLocaleDateString("es", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-pink-400 font-mono">
+                      ♥ {post.likedBy.length}
+                    </span>
+                    <Link
+                      href={`/comunidad#post-${post.id}`}
+                      className="text-pink-300 hover:underline font-semibold"
+                    >
+                      Ver en el muro ↗
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </main>
+
+    {/* Modal de Seguidores y Siguiendo */}
+    <UserListModal
+      isOpen={modalType !== null}
+      onClose={() => setModalType(null)}
+      title={modalType === "followers" ? `Seguidores de ${publicProfile.displayName}` : `Jugadores que sigue ${publicProfile.displayName}`}
+      userIds={modalType === "followers" ? (publicProfile.followers || []) : (publicProfile.following || [])}
+    />
+
     <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
