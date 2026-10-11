@@ -1,28 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { auth, googleProvider, db } from "@/app/lib/firebase";
-import { signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, getDocs, query, limit, where } from "firebase/firestore";
-
-interface UserProfile {
-  uid: string;
-  email: string;
-  displayName: string;
-  photoURL: string;
-  bio: string;
-  reputation: number;
-  tickets: number;
-  followers: string[]; // <-- Nuevo: Lista de IDs que te siguen
-  following: string[]; // <-- Nuevo: Lista de IDs que sigues
-}
+import { signInWithPopup, signOut } from "firebase/auth";
+import { collection, getDocs, query, limit } from "firebase/firestore";
+import { readUserProfile, type UserProfile } from "@/app/lib/profiles";
+import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
+import { ProfileActionError, saveUserProfile } from "@/app/lib/profile-actions";
+import { PROFILE_AVATARS } from "@/app/lib/avatars";
+import ProfileAvatarPicker from "@/app/components/ProfileAvatarPicker";
 
 export default function PerfilPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profileData, setProfileData] = useState<UserProfile | null>(null);
+  const { user, profile: profileData, loading, error: profileError } = useCurrentUserProfile();
   const [recommended, setRecommended] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
   
   // Modales
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -30,60 +22,49 @@ export default function PerfilPage() {
   
   const [newUsername, setNewUsername] = useState("");
   const [newBio, setNewBio] = useState("");
+  const [newPhoto, setNewPhoto] = useState<string>(PROFILE_AVATARS[0].src);
   const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [notice, setNotice] = useState("");
+  const pendingSave = useRef(false);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      
-      if (currentUser) {
-        const userRef = doc(db, "users", currentUser.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          const data = userSnap.data() as UserProfile;
-          setProfileData(data);
-          setNewUsername(data.displayName);
-          setNewBio(data.bio || "");
-        } else {
-          setNewUsername(currentUser.displayName || "Usuario_" + Math.floor(Math.random() * 1000));
-          setShowSetupModal(true);
-        }
-      } else {
-        setProfileData(null);
-      }
-      setLoading(false);
-      fetchRecommended(currentUser?.uid);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Función para obtener usuarios recomendados (Anti-bot: solo usuarios con bio)
-  const fetchRecommended = async (currentUid?: string) => {
-    try {
-      const q = query(collection(db, "users"), limit(5));
-      const querySnapshot = await getDocs(q);
-      const users: UserProfile[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data() as UserProfile;
-        // No mostrarse a uno mismo y solo mostrar usuarios que ya completaron su bio
-        if (data.uid !== currentUid && data.bio && data.bio.length > 0) {
-          users.push(data);
-        }
-      });
-      setRecommended(users);
-    } catch (error) {
-      console.error("Error buscando recomendados:", error);
+    if (loading) return;
+    if (!user) {
+      setShowSetupModal(false);
+      setShowEditModal(false);
+      return;
     }
-  };
+    if (!profileData && !profileError) {
+      setNewUsername((user.displayName || "Jugador").slice(0, 15));
+      setNewBio("");
+      setNewPhoto(user.photoURL || PROFILE_AVATARS[0].src);
+      setEditError("");
+      setShowSetupModal(true);
+    }
+  }, [user, profileData, loading, profileError]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchRecommended = async () => {
+      try {
+        const snapshot = await getDocs(query(collection(db, "users"), limit(6)));
+        if (active) setRecommended(snapshot.docs.map((item) => readUserProfile(item.id, item.data()))
+          .filter((item) => item.uid !== user?.uid && item.bio.trim()).slice(0, 5));
+      } catch { if (active) setRecommended([]); }
+    };
+    void fetchRecommended();
+    return () => { active = false; };
+  }, [user?.uid]);
 
   const handleGoogleLogin = async () => {
+    setNotice("");
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Error en login:", error);
+      setNotice("No pudimos iniciar sesión. Inténtalo nuevamente.");
     }
   };
 
@@ -96,66 +77,88 @@ export default function PerfilPage() {
   };
 
   const saveProfile = async () => {
-    if (!user) return;
+    if (!user || pendingSave.current) return;
+    setEditError("");
     if (newUsername.trim().length < 3) {
-      alert("El nombre debe tener al menos 3 caracteres.");
+      setEditError("El nombre debe tener entre 3 y 15 caracteres.");
       return;
     }
 
+    pendingSave.current = true;
     setIsSaving(true);
     try {
-      const userRef = doc(db, "users", user.uid);
-      const updatedProfile: UserProfile = {
-        uid: user.uid,
-        email: user.email || "",
-        displayName: newUsername.trim(),
-        photoURL: user.photoURL || "",
-        bio: newBio.trim(),
-        reputation: profileData?.reputation || 10, // Damos 10 RP por completar el perfil
-        tickets: profileData?.tickets || 0,
-        followers: profileData?.followers || [],
-        following: profileData?.following || [],
-      };
-
-      await setDoc(userRef, updatedProfile, { merge: true });
-      setProfileData(updatedProfile);
+      await saveUserProfile(db, user, { displayName: newUsername, bio: newBio, photoURL: newPhoto });
       setShowSetupModal(false);
       setShowEditModal(false);
-      window.location.reload();
+      setNotice("Perfil guardado.");
     } catch (error) {
-      console.error("Error guardando perfil:", error);
+      setEditError(error instanceof ProfileActionError && error.code === "invalid-name"
+        ? "El nombre debe tener entre 3 y 15 caracteres."
+        : "No se pudo guardar tu perfil. Revisa tu conexión e inténtalo nuevamente.");
     } finally {
+      pendingSave.current = false;
       setIsSaving(false);
     }
+  };
+
+  const openEditor = () => {
+    if (!user) { void handleGoogleLogin(); return; }
+    if (loading || profileError) return;
+    setNewUsername(profileData?.displayName || (user.displayName || "Jugador").slice(0, 15));
+    setNewBio(profileData?.bio || "");
+    setNewPhoto(profileData?.photoURL || user.photoURL || PROFILE_AVATARS[0].src);
+    setEditError("");
+    setShowEditModal(true);
+  };
+
+  const closeEditor = () => {
+    if (pendingSave.current) return;
+    setShowEditModal(false);
+    if (showSetupModal) { setShowSetupModal(false); void handleLogout(); }
   };
 
   return (
     <main className="w-full max-w-6xl mx-auto p-4 md:p-8 flex flex-col lg:flex-row gap-6 relative z-10 font-sans">
       
       {/* Modales de Edición (Ocultos por defecto) */}
-      {(showSetupModal || showEditModal) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-xl font-bold text-white mb-4">
+      {user && (showSetupModal || showEditModal) && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div ref={editorRef} role="dialog" aria-modal="true" aria-labelledby="profile-editor-title" className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto shadow-2xl" onKeyDown={(event) => {
+            if (event.key === "Escape") closeEditor();
+            if (event.key === "Tab") {
+              const fields = Array.from(editorRef.current?.querySelectorAll<HTMLElement>('input:not(:disabled),textarea:not(:disabled),button:not(:disabled)') || [])
+                .filter((field) => !(field instanceof HTMLInputElement) || field.type !== "radio" || field.checked);
+              if (!fields?.length) return;
+              const first = fields[0], last = fields[fields.length - 1];
+              if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+              else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+            }
+          }}>
+            <h2 id="profile-editor-title" className="text-xl font-bold text-white mb-4">
               {showSetupModal ? "Actualiza tu perfil (Requerido)" : "Editar perfil"}
             </h2>
+            <form onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
+            <fieldset disabled={isSaving} className="border-0 p-0 m-0 min-w-0">
+            <ProfileAvatarPicker value={newPhoto} onChange={setNewPhoto} currentPhoto={profileData?.photoURL} googlePhoto={user.photoURL} />
             <div className="mb-4">
-              <label className="text-xs text-neutral-400 mb-1 block">Nombre de usuario</label>
-              <input type="text" maxLength={15} value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full bg-[#1a1b26] border border-neutral-700 rounded-lg p-3 text-white focus:outline-none focus:border-pink-500" />
+              <label htmlFor="profile-username" className="text-xs text-neutral-400 mb-1 block">Nombre de usuario</label>
+              <input id="profile-username" autoFocus type="text" maxLength={15} value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full bg-[#1a1b26] border border-neutral-700 rounded-lg p-3 text-white focus:outline-none focus:border-pink-500" />
             </div>
             <div className="mb-6">
-              <label className="text-xs text-neutral-400 mb-1 block">Biografía (Obligatoria para seguir a otros)</label>
-              <textarea rows={3} value={newBio} onChange={(e) => setNewBio(e.target.value)} className="w-full bg-[#1a1b26] border border-neutral-700 rounded-lg p-3 text-white focus:outline-none focus:border-pink-500 resize-none" />
+              <label htmlFor="profile-bio" className="text-xs text-neutral-400 mb-1 block">Biografía (Obligatoria para seguir a otros)</label>
+              <textarea id="profile-bio" rows={3} maxLength={500} value={newBio} onChange={(e) => setNewBio(e.target.value)} className="w-full bg-[#1a1b26] border border-neutral-700 rounded-lg p-3 text-white focus:outline-none focus:border-pink-500 resize-none" />
             </div>
+            {editError && <p role="alert" className="text-sm text-[#f3b5a7] mb-4">{editError}</p>}
             <div className="flex justify-end gap-3">
-              {showSetupModal && <button onClick={() => { handleLogout(); setShowSetupModal(false); }} className="px-4 py-2 rounded-lg bg-[#1a1b26] text-white">Cancelar</button>}
-              {showEditModal && <button onClick={() => setShowEditModal(false)} className="px-4 py-2 rounded-lg bg-[#1a1b26] text-white">Cancelar</button>}
-              <button onClick={saveProfile} disabled={isSaving} className="px-6 py-2 rounded-lg bg-[#448b59] hover:bg-[#367047] text-white font-bold disabled:opacity-50">
+              <button type="button" onClick={closeEditor} className="px-4 py-2 rounded-lg bg-[#1a1b26] text-white">Cancelar</button>
+              <button type="submit" disabled={isSaving} className="px-6 py-2 rounded-lg bg-[#f3b5a7] hover:bg-[#f8cbc2] text-[#241820] font-bold disabled:opacity-50">
                 {isSaving ? "Guardando..." : "Guardar"}
               </button>
             </div>
+            </fieldset>
+            </form>
           </div>
-        </div>
+        </div>, document.body
       )}
 
       {/* Columna Izquierda: Tu Perfil */}
@@ -171,7 +174,7 @@ export default function PerfilPage() {
                 {profileData?.photoURL ? <img src={profileData.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : "😎"}
               </div>
               <div className="flex items-center gap-3 mb-2">
-                <button onClick={() => setShowEditModal(true)} className="px-4 py-2 rounded-xl bg-[#1b1c26] hover:bg-[#252633] text-[15px] font-semibold text-white transition-colors h-10">
+                <button onClick={openEditor} disabled={loading || Boolean(profileError)} className="px-4 py-2 rounded-xl bg-[#1b1c26] hover:bg-[#252633] text-[15px] font-semibold text-white transition-colors h-10 disabled:opacity-50">
                   Editar perfil
                 </button>
               </div>
@@ -181,6 +184,8 @@ export default function PerfilPage() {
               {loading ? "Cargando..." : (profileData?.displayName || "Jugador Invitado")}
             </h1>
             {profileData?.bio && <p className="text-sm text-neutral-400 mb-4">{profileData.bio}</p>}
+            {profileError && <p role="alert" className="text-sm text-[#f3b5a7] mb-4">{profileError}</p>}
+            {notice && <p role="status" className="text-sm text-[#ecacc9] mb-4">{notice}</p>}
             
             <div className="flex gap-8 text-[15px] font-medium mt-4">
               <div className="flex flex-col gap-0.5">
@@ -246,7 +251,7 @@ export default function PerfilPage() {
               recommended.map((recUser) => (
                 <div key={recUser.uid} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <img src={recUser.photoURL || "https://via.placeholder.com/40"} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-neutral-700" />
+                    <img src={recUser.photoURL || PROFILE_AVATARS[0].src} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-neutral-700" />
                     <div className="flex flex-col">
                       <Link href={`/usuario/${recUser.uid}`} className="text-[14px] font-bold text-white hover:underline">
                         {recUser.displayName}

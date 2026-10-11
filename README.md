@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Profile regression tests
+
+The tests use an isolated Firestore emulator and the `demo-gta6hub-follow` project. They never connect to production. With Java 17 or newer installed:
+
+```bash
+npx firebase-tools@14.17.0 emulators:exec --only firestore --project demo-gta6hub-follow --config tests/firebase.json 'npm run test:profiles'
+```
+
+The rules in `tests/firestore.rules` are fixtures for these tests only. They must not be deployed to a live project.

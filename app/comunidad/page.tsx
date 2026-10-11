@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { auth, db } from "@/app/lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { db } from "@/app/lib/firebase";
+import { type User } from "firebase/auth";
+import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import { collection, addDoc, query, orderBy, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
 import AuthModal from "@/app/components/AuthModal";
 import GiveawayCard from "@/app/components/GiveawayCard";
@@ -101,8 +102,8 @@ function CommentSection({ postId, user, hasProfile, onLogin }: { postId: string;
 }
 
 export default function ComunidadPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [hasProfile, setHasProfile] = useState(false);
+  const { user, profile, error: profileError } = useCurrentUserProfile();
+  const hasProfile = Boolean(profile?.bio.trim());
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPost, setNewPost] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
@@ -113,22 +114,6 @@ export default function ComunidadPage() {
   const [authOpen, setAuthOpen] = useState(false);
   const pendingLikes = useRef(new Set<string>());
   const [busyLikes, setBusyLikes] = useState<string[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    let version = 0;
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      const currentVersion = ++version;
-      setUser(currentUser);
-      setHasProfile(false);
-      if (!currentUser) return;
-      try {
-        const profile = await getDoc(doc(db, "users", currentUser.uid));
-        if (active && currentVersion === version) setHasProfile(Boolean(profile.exists() && profile.data().bio));
-      } catch { if (active && currentVersion === version) setError("No pudimos cargar tu perfil. Vuelve a intentarlo."); }
-    });
-    return () => { active = false; unsubscribe(); };
-  }, []);
 
   async function fetchPosts() {
     try {
@@ -181,10 +166,10 @@ export default function ComunidadPage() {
           <section className={styles.feed} aria-label="Muro de la comunidad">
             <article className={styles.pinned}><span className={styles.pinMark} aria-hidden="true">↗</span><div><p className={styles.eyebrow}>GTA6HUB / Destacado</p><h2>La próxima consola podría ser tuya.</h2><p>Tenemos un sorteo de PS5 + GTA VI para la comunidad. Revisa los paquetes y sigue las novedades aquí. Y tú, ¿qué harías primero al llegar a Vice City?</p><Link href="/sorteos#tickets">Ver el sorteo y elegir tickets →</Link></div></article>
             <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void handlePublish(); }}>
-              <div className={styles.composerTop}><Avatar name={user?.displayName || "G6"} photo={user?.photoURL} /><label htmlFor="new-post" className={styles.srOnly}>Escribe tu publicación</label><textarea id="new-post" rows={3} maxLength={5000} value={newPost} onChange={(event) => setNewPost(event.target.value)} disabled={!user || !hasProfile || isPublishing} placeholder={!user ? "Tu crew está aquí. Inicia sesión y entra en la conversación." : !hasProfile ? "Completa tu perfil y presenta a tu personaje." : "¿Una teoría? ¿Un clip? ¿Tu primera misión en GTA VI?"} /></div>
+              <div className={styles.composerTop}><Avatar name={profile?.displayName || user?.displayName || "G6"} photo={profile?.photoURL || user?.photoURL} /><label htmlFor="new-post" className={styles.srOnly}>Escribe tu publicación</label><textarea id="new-post" rows={3} maxLength={5000} value={newPost} onChange={(event) => setNewPost(event.target.value)} disabled={!user || !hasProfile || isPublishing} placeholder={!user ? "Tu crew está aquí. Inicia sesión y entra en la conversación." : !hasProfile ? "Completa tu perfil y presenta a tu personaje." : "¿Una teoría? ¿Un clip? ¿Tu primera misión en GTA VI?"} /></div>
               <div className={styles.composerBottom}><span>{newPost.length > 0 ? `${newPost.length} / 5000` : "Comparte también enlaces de YouTube."}</span>{!user ? <button type="button" className={styles.smallButton} onClick={() => setAuthOpen(true)}>Iniciar sesión</button> : !hasProfile ? <Link className={styles.smallButton} href="/perfil">Crear perfil</Link> : <button className={styles.smallButton} disabled={isPublishing || !newPost.trim()}>{isPublishing ? "Publicando…" : "Publicar ↗"}</button>}</div>
             </form>
-            {error && <p role="alert" className={styles.error}>{error}</p>}
+            {(error || profileError) && <p role="alert" className={styles.error}>{error || profileError}</p>}
             <div className={styles.feedTools}><div className={styles.tabs} aria-label="Filtrar publicaciones">{[{ id: "all", label: "El muro" }, { id: "videos", label: "Videos" }, { id: "giveaway", label: "Sorteo" }].map((item) => <button key={item.id} type="button" className={tab === item.id ? styles.activeTab : ""} aria-pressed={tab === item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}</div><span className={styles.feedCount}>{visiblePosts.length} posts</span></div>
             {loadingPosts ? <div role="status" className={styles.empty}><p>Cargando la comunidad…</p></div> : visiblePosts.length === 0 ? <div className={styles.empty}><h3>{tab === "all" ? "La ciudad empieza contigo." : "Todavía no hay publicaciones aquí."}</h3><p>{tab === "all" ? "Comparte tu primera teoría o cuéntanos qué esperas de GTA VI." : "Abre la conversación con un video o una pregunta sobre el sorteo."}</p></div> : visiblePosts.map((post) => {
               const liked = Boolean(user && post.likedBy.includes(user.uid));

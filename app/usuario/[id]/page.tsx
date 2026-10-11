@@ -1,119 +1,89 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import { auth, db } from "@/app/lib/firebase";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
-
-interface UserProfile {
-  uid: string;
-  displayName: string;
-  photoURL: string;
-  bio: string;
-  reputation: number;
-  followers: string[];
-  following: string[];
-}
+import { db } from "@/app/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
+import { readUserProfile, type UserProfile } from "@/app/lib/profiles";
+import { ProfileActionError, setFollowState } from "@/app/lib/profile-actions";
+import AuthModal from "@/app/components/AuthModal";
 
 export default function PerfilPublico() {
-  const params = useParams();
-  const profileId = params.id as string; // El ID del usuario que estamos visitando
-
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
-  
+  const { id: profileId } = useParams<{ id: string }>();
+  const { user: currentUser, profile: currentUserProfile, loading: loadingSession, error: sessionError } = useCurrentUserProfile();
   const [publicProfile, setPublicProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [followError, setFollowError] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [needsProfile, setNeedsProfile] = useState(false);
+  const pendingFollow = useRef(false);
+
+  const isOwnProfile = currentUser?.uid === profileId;
+  // Either side recognizes legacy relationships left by an interrupted old write.
+  const isFollowing = Boolean(currentUser && (
+    currentUserProfile?.following.includes(profileId) || publicProfile?.followers.includes(currentUser.uid)
+  ));
 
   useEffect(() => {
-    // 1. Saber quién soy yo (el que navega)
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        const myRef = doc(db, "users", user.uid);
-        const mySnap = await getDoc(myRef);
-        if (mySnap.exists()) {
-          setCurrentUserProfile(mySnap.data() as UserProfile);
-        }
-      }
-    });
-
-    // 2. Cargar los datos del perfil que estamos visitando
-    const fetchPublicProfile = async () => {
-      const docRef = doc(db, "users", profileId);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data() as UserProfile;
-        setPublicProfile({
-          ...data,
-          followers: data.followers || [],
-          following: data.following || [],
-        });
-      }
+    let active = true;
+    setLoading(true);
+    setPublicProfile(null);
+    setLoadError("");
+    setFollowError("");
+    setNeedsProfile(false);
+    const unsubscribe = onSnapshot(doc(db, "users", profileId), (snapshot) => {
+      if (!active) return;
+      setPublicProfile(snapshot.exists() ? readUserProfile(snapshot.id, snapshot.data()) : null);
       setLoading(false);
-    };
-
-    fetchPublicProfile();
-    return () => unsubscribe();
+    }, () => {
+      if (!active) return;
+      setLoadError("No pudimos cargar este perfil. Recarga la página para volver a intentarlo.");
+      setLoading(false);
+    });
+    return () => { active = false; unsubscribe(); };
   }, [profileId]);
 
-  // 3. Revisar si ya lo sigo
-  useEffect(() => {
-    if (currentUserProfile && publicProfile) {
-      setIsFollowing(currentUserProfile.following.includes(publicProfile.uid));
-    }
-  }, [currentUserProfile, publicProfile]);
-
-  // Función anti-bots para seguir
   const handleFollow = async () => {
+    if (pendingFollow.current || loadingSession || !publicProfile || sessionError) return;
+    setFollowError("");
+    setNeedsProfile(false);
     if (!currentUser) {
-      alert("Debes iniciar sesión para seguir a usuarios.");
+      setAuthOpen(true);
       return;
     }
-    if (!currentUserProfile || !currentUserProfile.bio) {
-      alert("ANTI-BOT: Debes completar tu biografía en tu perfil antes de poder seguir a otros.");
+    if (isOwnProfile) return;
+    if (!currentUserProfile || (!isFollowing && !currentUserProfile.bio.trim())) {
+      setFollowError("Completa tu biografía antes de seguir a otros jugadores.");
+      setNeedsProfile(true);
       return;
     }
-    if (currentUser.uid === publicProfile?.uid) {
-      alert("No puedes seguirte a ti mismo.");
-      return;
-    }
-
+    pendingFollow.current = true;
     setIsProcessing(true);
-    const myRef = doc(db, "users", currentUser.uid);
-    const targetRef = doc(db, "users", profileId);
-
     try {
-      if (isFollowing) {
-        // Dejar de seguir
-        await updateDoc(myRef, { following: arrayRemove(profileId) });
-        await updateDoc(targetRef, { followers: arrayRemove(currentUser.uid) });
-        
-        setIsFollowing(false);
-        setPublicProfile(prev => prev ? { ...prev, followers: prev.followers.filter(id => id !== currentUser.uid) } : null);
-      } else {
-        // Seguir
-        await updateDoc(myRef, { following: arrayUnion(profileId) });
-        await updateDoc(targetRef, { followers: arrayUnion(currentUser.uid) });
-        
-        setIsFollowing(true);
-        setPublicProfile(prev => prev ? { ...prev, followers: [...prev.followers, currentUser.uid] } : null);
-      }
+      await setFollowState(db, currentUser.uid, profileId, !isFollowing);
     } catch (error) {
-      console.error("Error al seguir:", error);
+      if (error instanceof ProfileActionError && ["incomplete-profile", "missing-profile"].includes(error.code)) {
+        setFollowError("Completa tu perfil antes de seguir a otros jugadores.");
+        setNeedsProfile(true);
+      } else {
+        setFollowError("No se pudo guardar el cambio. Revisa tu conexión e inténtalo nuevamente.");
+      }
     } finally {
+      pendingFollow.current = false;
       setIsProcessing(false);
     }
   };
 
   if (loading) return <div className="text-white text-center mt-20">Buscando usuario...</div>;
+  if (loadError) return <p role="alert" className="text-white text-center mt-20">{loadError}</p>;
   if (!publicProfile) return <div className="text-white text-center mt-20">Usuario no encontrado.</div>;
 
   return (
+    <>
     <main className="w-full max-w-4xl mx-auto p-4 md:p-8 flex flex-col gap-6 relative z-10 font-sans">
       <div className="bg-[#121319] border border-neutral-800 rounded-2xl overflow-hidden shadow-lg w-full">
         {/* Banner */}
@@ -130,17 +100,21 @@ export default function PerfilPublico() {
 
             {/* Botón de Seguir */}
             <div className="flex items-center gap-3 mb-2">
+              {isOwnProfile ? <Link href="/perfil" className="px-4 py-2 rounded-xl border border-neutral-600 text-white text-sm font-semibold">Editar mi perfil</Link> : (
               <button 
                 onClick={handleFollow}
-                disabled={isProcessing}
-                className={`px-6 py-2 rounded-xl text-[15px] font-bold transition-all h-10 ${
+                disabled={isProcessing || loadingSession || Boolean(sessionError)}
+                aria-pressed={isFollowing}
+                aria-busy={isProcessing}
+                className={`px-4 md:px-6 py-2 rounded-xl text-[14px] font-bold transition-all min-h-10 disabled:opacity-50 disabled:cursor-wait ${
                   isFollowing 
                   ? "bg-transparent border border-neutral-600 text-white hover:border-red-500 hover:text-red-500" 
-                  : "bg-white text-black hover:bg-neutral-200"
+                  : "bg-[#f3b5a7] text-[#241820] hover:bg-[#f8cbc2]"
                 }`}
               >
-                {isProcessing ? "..." : isFollowing ? "Siguiendo" : "Seguir"}
+                {isProcessing ? "Guardando…" : loadingSession ? "Cargando…" : isFollowing ? "Dejar de seguir" : "Seguir"}
               </button>
+              )}
             </div>
           </div>
 
@@ -148,6 +122,7 @@ export default function PerfilPublico() {
             {publicProfile.displayName}
           </h1>
           <p className="text-sm text-neutral-400 mb-4">{publicProfile.bio}</p>
+          {(followError || sessionError) && <div role="alert" className="text-sm text-[#f3b5a7] mb-4"><p>{followError || sessionError}</p>{needsProfile && <Link href="/perfil" className="underline inline-block mt-2">Completar mi perfil →</Link>}</div>}
           
           <div className="flex gap-8 text-[15px] font-medium mt-4">
             <div className="flex flex-col gap-0.5">
@@ -166,5 +141,7 @@ export default function PerfilPublico() {
         </div>
       </div>
     </main>
+    <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+    </>
   );
 }

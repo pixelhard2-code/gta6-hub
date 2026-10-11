@@ -2,10 +2,8 @@
 
 import "./globals.css";
 import Link from "next/link";
-import { useState, useEffect } from "react";
-import { auth, db } from "@/app/lib/firebase";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { useState } from "react";
+import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import AuthModal from "@/app/components/AuthModal";
 import DesktopHeader from "@/app/components/DesktopHeader";
 import desktopStyles from "@/app/components/DesktopLayout.module.css";
@@ -15,57 +13,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [user, setUser] = useState<User | null>(null);
-  const [customName, setCustomName] = useState<string>("");
-  const [customPhoto, setCustomPhoto] = useState<string>("");
+  const { user, profile } = useCurrentUserProfile();
   
   // Estados para menús y modales
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      
-      if (currentUser) {
-        try {
-          // Buscamos en la colección "usuarios". 
-          // (Si tu colección en Firebase se llama "users", cambia la palabra aquí abajo)
-          const docRef = doc(db, "users", currentUser.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            
-            // CHISMOSO 1: Te dirá en la consola (F12) qué datos encontró en Firebase
-            console.log("¡Datos encontrados en Firebase! Revisa cómo se llama tu campo de nombre:", data);
-            
-            // Busca tu nombre ("PixelHard") en cualquiera de los nombres de campo más comunes
-            const nombreGuardado = data.username || data.nombreUsuario || data.usuario || data.displayName || data.name || "";
-            setCustomName(nombreGuardado);
-            
-            // Busca tu foto de perfil personalizada
-            setCustomPhoto(data.photoURL || data.avatar || data.foto || "");
-          } else {
-            // CHISMOSO 2: Te dirá si el documento no existe en esa colección
-            console.log("No se encontró ningún documento en la colección 'usuarios' para el UID:", currentUser.uid);
-            setCustomName("");
-            setCustomPhoto("");
-          }
-        } catch (error) {
-          console.error("Error obteniendo los datos del usuario:", error);
-        }
-      } else {
-          setCustomName("");
-          setCustomPhoto("");
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
   // Lógica para decidir qué nombre mostrar (Prioriza tu nombre de Firebase, si no, usa el de Google)
-  const displayNameToShow = customName || (user ? user.displayName : "") || "Mi Perfil";
-  const displayPhotoToShow = customPhoto || (user ? user.photoURL : "");
+  const displayNameToShow = profile?.displayName || user?.displayName || "Mi Perfil";
+  const displayPhotoToShow = profile?.photoURL || user?.photoURL || "";
 
   return (
     <html lang="es">
