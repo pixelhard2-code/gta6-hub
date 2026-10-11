@@ -76,8 +76,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body className="antialiased bg-[#0d0d12] text-white min-h-screen pb-20 md:pb-0 relative">
+    <html lang="es" suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="antialiased bg-[#0d0d12] text-white min-h-screen pb-20 md:pb-0 relative"
+      >
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
