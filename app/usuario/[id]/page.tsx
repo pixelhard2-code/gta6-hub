@@ -22,7 +22,7 @@ export default function PerfilPublico() {
   const [authOpen, setAuthOpen] = useState(false);
   const [needsProfile, setNeedsProfile] = useState(false);
   const [modalType, setModalType] = useState<"followers" | "following" | null>(null);
-  const [userPosts, setUserPosts] = useState<{ id: string; content: string; createdAt: number; likedBy: string[] }[]>([]);
+  const [userPosts, setUserPosts] = useState<{ id: string; content: string; createdAt: number; likedBy: string[]; replyCount?: number }[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const pendingFollow = useRef(false);
 
@@ -67,6 +67,7 @@ export default function PerfilPublico() {
                 content: typeof d.content === "string" ? d.content : "",
                 createdAt: typeof d.createdAt === "number" ? d.createdAt : Date.now(),
                 likedBy: Array.isArray(d.likedBy) ? d.likedBy : [],
+                replyCount: typeof d.replyCount === "number" ? d.replyCount : 0,
               };
             });
           setUserPosts(list);
@@ -231,9 +232,14 @@ export default function PerfilPublico() {
                     })}
                   </span>
                   <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1 text-pink-400 font-mono">
+                    <span className="flex items-center gap-1 text-pink-400 font-mono" title={`${post.likedBy.length} me gusta`}>
                       ♥ {post.likedBy.length}
                     </span>
+                    {typeof post.replyCount === "number" && post.replyCount > 0 && (
+                      <span className="flex items-center gap-1 text-neutral-300 font-mono text-[11px]" title={`${post.replyCount} respuestas`}>
+                        💬 {post.replyCount}
+                      </span>
+                    )}
                     <Link
                       href={`/comunidad#post-${post.id}`}
                       className="text-pink-300 hover:underline font-semibold"

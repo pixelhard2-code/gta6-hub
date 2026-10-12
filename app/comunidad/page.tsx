@@ -5,7 +5,7 @@ import Link from "next/link";
 import { db } from "@/app/lib/firebase";
 import { type User } from "firebase/auth";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
-import { collection, addDoc, query, orderBy, limit, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, query, orderBy, limit, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot, getCountFromServer, increment } from "firebase/firestore";
 import AuthModal from "@/app/components/AuthModal";
 import GiveawayCard from "@/app/components/GiveawayCard";
 import styles from "@/app/components/Hub.module.css";
@@ -18,7 +18,12 @@ interface Reply {
   content: string;
   createdAt: number;
 }
-interface Post extends Reply { likedBy: string[] }
+interface Post extends Reply {
+  likedBy: string[];
+  replyCount?: number;
+  lastReplyAuthor?: string;
+  lastReplyAt?: number;
+}
 
 function Avatar({ name, photo }: { name: string; photo?: string | null }) {
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
@@ -60,7 +65,21 @@ async function authorData(user: User) {
   };
 }
 
-function CommentSection({ postId, user, hasProfile, onLogin }: { postId: string; user: User | null; hasProfile: boolean; onLogin: () => void }) {
+function CommentSection({
+  postId,
+  postAuthorId,
+  user,
+  hasProfile,
+  onLogin,
+  onCountChange,
+}: {
+  postId: string;
+  postAuthorId: string;
+  user: User | null;
+  hasProfile: boolean;
+  onLogin: () => void;
+  onCountChange?: (count: number, lastAuthor?: string, lastTime?: number) => void;
+}) {
   const [comments, setComments] = useState<Reply[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -71,26 +90,57 @@ function CommentSection({ postId, user, hasProfile, onLogin }: { postId: string;
 
   useEffect(() => {
     return onSnapshot(query(collection(db, "posts", postId, "comments"), orderBy("createdAt", "asc")), (snapshot) => {
-      setComments(snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Reply));
+      const loaded = snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Reply);
+      setComments(loaded);
       setLoading(false);
-    }, () => { setError("No pudimos cargar las respuestas. Inténtalo nuevamente."); setLoading(false); });
-  }, [postId]);
+      const last = loaded[loaded.length - 1];
+      onCountChange?.(loaded.length, last?.authorName, last?.createdAt);
+    }, () => {
+      setError("No pudimos cargar las respuestas. Inténtalo nuevamente.");
+      setLoading(false);
+    });
+  }, [postId, onCountChange]);
 
   async function sendReply() {
     if (!newComment.trim() || !user || !hasProfile || isSending) return;
     setIsSending(true);
     setError("");
     try {
-      await addDoc(collection(db, "posts", postId, "comments"), { ...await authorData(user), content: newComment.trim(), createdAt: Date.now() });
+      const author = await authorData(user);
+      const replyData = {
+        ...author,
+        content: newComment.trim(),
+        createdAt: Date.now(),
+      };
+      await addDoc(collection(db, "posts", postId, "comments"), replyData);
+      try {
+        await updateDoc(doc(db, "posts", postId), {
+          replyCount: increment(1),
+          lastReplyAuthor: author.authorName,
+          lastReplyAt: replyData.createdAt,
+        });
+      } catch {
+        // Safe update fallback
+      }
       setNewComment("");
-    } catch { setError("Tu respuesta no se pudo publicar. Inténtalo nuevamente."); }
-    finally { setIsSending(false); }
+    } catch {
+      setError("Tu respuesta no se pudo publicar. Inténtalo nuevamente.");
+    } finally {
+      setIsSending(false);
+    }
   }
 
   async function handleDeleteReply(replyId: string) {
     setIsDeletingReply(replyId);
     try {
       await deleteDoc(doc(db, "posts", postId, "comments", replyId));
+      try {
+        await updateDoc(doc(db, "posts", postId), {
+          replyCount: increment(-1),
+        });
+      } catch {
+        // Safe update fallback
+      }
       setReplyToDelete(null);
     } catch {
       setError("No se pudo eliminar la respuesta. Inténtalo nuevamente.");
@@ -99,60 +149,115 @@ function CommentSection({ postId, user, hasProfile, onLogin }: { postId: string;
     }
   }
 
-  return <section className={styles.comments} aria-label="Respuestas">
-    {error && <p role="alert" className={styles.error}>{error}</p>}
-    {loading ? <p className={styles.panelNote}>Cargando respuestas…</p> : comments.length === 0 && <p className={styles.panelNote}>Abre la conversación. Todavía no hay respuestas.</p>}
-    {comments.map((reply) => <div key={reply.id} className={styles.comment}>
-      <Avatar name={reply.authorName} photo={reply.authorPhoto} />
-      <div className={styles.commentBody}>
-        <div className="flex items-center justify-between gap-2">
-          <Link href={`/usuario/${reply.authorId}`}>{reply.authorName}</Link>
-          {user && user.uid === reply.authorId && (
-            replyToDelete === reply.id ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px] bg-red-950/40 border border-red-800/50 px-2 py-0.5 rounded">
-                <span className="text-red-300">¿Borrar?</span>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteReply(reply.id)}
-                  disabled={isDeletingReply === reply.id}
-                  className="text-red-400 font-bold hover:underline"
-                >
-                  {isDeletingReply === reply.id ? "..." : "Sí"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReplyToDelete(null)}
-                  className="text-neutral-400 hover:text-white"
-                >
-                  No
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setReplyToDelete(reply.id)}
-                className="text-[11px] text-neutral-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
-                title="Eliminar respuesta"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <span>Borrar</span>
-              </button>
-            )
-          )}
-        </div>
-        <p>{reply.content}</p>
+  return (
+    <section className={styles.comments} aria-label="Respuestas">
+      {/* Header de Respuestas */}
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-800/60">
+        <h4 className="text-xs font-bold text-neutral-300 uppercase tracking-wider font-mono flex items-center gap-2">
+          <span>💬 Conversación</span>
+          <span className="text-[10px] bg-[#34243b] text-pink-300 px-2 py-0.5 rounded-full font-bold">
+            {comments.length}
+          </span>
+        </h4>
+        <span className="text-[11px] text-neutral-400">
+          {comments.length === 0 ? "Sin respuestas aún" : `${comments.length} ${comments.length === 1 ? "respuesta" : "respuestas"}`}
+        </span>
       </div>
-    </div>)}
-    {!user ? <button className={styles.smallButton} onClick={onLogin}>Iniciar sesión para responder</button> : !hasProfile ? <Link href="/perfil" className={styles.smallButton}>Completar mi perfil</Link> : (
-      <form className={styles.replyForm} onSubmit={(event) => { event.preventDefault(); void sendReply(); }}>
-        <label className={styles.srOnly} htmlFor={`reply-${postId}`}>Tu respuesta</label>
-        <input id={`reply-${postId}`} value={newComment} onChange={(event) => setNewComment(event.target.value)} placeholder="Escribe una respuesta…" maxLength={2000} disabled={isSending} />
-        <button className={styles.smallButton} disabled={!newComment.trim() || isSending}>{isSending ? "Enviando…" : "Responder"}</button>
-      </form>
-    )}
-  </section>;
+
+      {error && <p role="alert" className={styles.error}>{error}</p>}
+      {loading ? (
+        <p className={styles.panelNote}>Cargando respuestas…</p>
+      ) : comments.length === 0 ? (
+        <p className={styles.panelNote}>Abre la conversación. Sé el primero en responder a este post.</p>
+      ) : null}
+
+      {comments.map((reply) => (
+        <div key={reply.id} className={styles.comment}>
+          <Avatar name={reply.authorName} photo={reply.authorPhoto} />
+          <div className={styles.commentBody}>
+            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Link href={`/usuario/${reply.authorId}`} className="font-bold text-xs text-white hover:underline">
+                  {reply.authorName}
+                </Link>
+                {reply.authorId === postAuthorId && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 font-mono">
+                    Autor
+                  </span>
+                )}
+                <time className="text-[10px] text-neutral-400 font-mono">
+                  {timeAgo(reply.createdAt)}
+                </time>
+              </div>
+
+              {user && user.uid === reply.authorId && (
+                replyToDelete === reply.id ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] bg-red-950/40 border border-red-800/50 px-2 py-0.5 rounded">
+                    <span className="text-red-300">¿Borrar?</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteReply(reply.id)}
+                      disabled={isDeletingReply === reply.id}
+                      className="text-red-400 font-bold hover:underline"
+                    >
+                      {isDeletingReply === reply.id ? "..." : "Sí"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReplyToDelete(null)}
+                      className="text-neutral-400 hover:text-white"
+                    >
+                      No
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setReplyToDelete(reply.id)}
+                    className="text-[11px] text-neutral-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
+                    title="Eliminar respuesta"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Borrar</span>
+                  </button>
+                )
+              )}
+            </div>
+            <div className="text-xs text-neutral-200 leading-relaxed overflow-wrap-anywhere">
+              {renderContent(reply.content)}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {!user ? (
+        <button className={styles.smallButton} onClick={onLogin}>
+          Iniciar sesión para responder
+        </button>
+      ) : !hasProfile ? (
+        <Link href="/perfil" className={styles.smallButton}>
+          Completar mi perfil
+        </Link>
+      ) : (
+        <form className={styles.replyForm} onSubmit={(event) => { event.preventDefault(); void sendReply(); }}>
+          <label className={styles.srOnly} htmlFor={`reply-${postId}`}>Tu respuesta</label>
+          <input
+            id={`reply-${postId}`}
+            value={newComment}
+            onChange={(event) => setNewComment(event.target.value)}
+            placeholder="Escribe una respuesta a la crew…"
+            maxLength={2000}
+            disabled={isSending}
+          />
+          <button className={styles.smallButton} disabled={!newComment.trim() || isSending}>
+            {isSending ? "Enviando…" : "Responder ↗"}
+          </button>
+        </form>
+      )}
+    </section>
+  );
 }
 
 export default function ComunidadPage() {
@@ -170,18 +275,55 @@ export default function ComunidadPage() {
   const [isDeletingPost, setIsDeletingPost] = useState<string | null>(null);
   const pendingLikes = useRef(new Set<string>());
   const [busyLikes, setBusyLikes] = useState<string[]>([]);
+  const [replyStats, setReplyStats] = useState<Record<string, { count: number; lastAuthor?: string; lastTime?: number }>>({});
 
   async function fetchPosts() {
     try {
       const snapshot = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(30)));
-      setPosts(snapshot.docs.map((item) => {
+      const loadedPosts = snapshot.docs.map((item) => {
         const data = item.data();
         return { ...data, id: item.id, likedBy: Array.isArray(data.likedBy) ? data.likedBy : [] } as Post;
-      }));
-    } catch { setError("No pudimos cargar las publicaciones. Recarga la página para intentarlo nuevamente."); }
-    finally { setLoadingPosts(false); }
+      });
+      setPosts(loadedPosts);
+
+      // Pre-fill stats from Firestore post documents
+      const statsMap: Record<string, { count: number; lastAuthor?: string; lastTime?: number }> = {};
+      loadedPosts.forEach((p) => {
+        if (typeof p.replyCount === "number") {
+          statsMap[p.id] = { count: p.replyCount, lastAuthor: p.lastReplyAuthor, lastTime: p.lastReplyAt };
+        }
+      });
+      setReplyStats((prev) => ({ ...statsMap, ...prev }));
+
+      // Asynchronously fetch counts for legacy posts that don't have replyCount set
+      loadedPosts.forEach(async (p) => {
+        if (typeof p.replyCount !== "number") {
+          try {
+            const countSnap = await getCountFromServer(collection(db, "posts", p.id, "comments"));
+            const count = countSnap.data().count;
+            setReplyStats((prev) => ({
+              ...prev,
+              [p.id]: { count, lastAuthor: prev[p.id]?.lastAuthor, lastTime: prev[p.id]?.lastTime },
+            }));
+          } catch {
+            // Count fallback
+          }
+        }
+      });
+    } catch {
+      setError("No pudimos cargar las publicaciones. Recarga la página para intentarlo nuevamente.");
+    } finally {
+      setLoadingPosts(false);
+    }
   }
   useEffect(() => { void fetchPosts(); }, []);
+
+  const handleReplyCountChange = (postId: string, count: number, lastAuthor?: string, lastTime?: number) => {
+    setReplyStats((prev) => ({
+      ...prev,
+      [postId]: { count, lastAuthor, lastTime },
+    }));
+  };
 
   async function handleDeletePost(postId: string) {
     if (!user) return;
@@ -203,12 +345,22 @@ export default function ComunidadPage() {
     setIsPublishing(true);
     setError("");
     try {
-      const data = { ...await authorData(user), content: newPost.trim(), createdAt: Date.now(), likedBy: [] };
+      const data = {
+        ...await authorData(user),
+        content: newPost.trim(),
+        createdAt: Date.now(),
+        likedBy: [],
+        replyCount: 0,
+      };
       const post = await addDoc(collection(db, "posts"), data);
       setPosts((previous) => [{ ...data, id: post.id }, ...previous]);
+      setReplyStats((prev) => ({ ...prev, [post.id]: { count: 0 } }));
       setNewPost("");
-    } catch { setError("Tu publicación no se pudo guardar. Inténtalo nuevamente."); }
-    finally { setIsPublishing(false); }
+    } catch {
+      setError("Tu publicación no se pudo guardar. Inténtalo nuevamente.");
+    } finally {
+      setIsPublishing(false);
+    }
   }
 
   async function handleLike(post: Post) {
@@ -244,12 +396,85 @@ export default function ComunidadPage() {
             <div className={styles.feedTools}><div className={styles.tabs} aria-label="Filtrar publicaciones">{[{ id: "all", label: "El muro" }, { id: "videos", label: "Videos" }, { id: "giveaway", label: "Sorteo" }].map((item) => <button key={item.id} type="button" className={tab === item.id ? styles.activeTab : ""} aria-pressed={tab === item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}</div><span className={styles.feedCount}>{visiblePosts.length} posts</span></div>
             {loadingPosts ? <div role="status" className={styles.empty}><p>Cargando la comunidad…</p></div> : visiblePosts.length === 0 ? <div className={styles.empty}><h3>{tab === "all" ? "La ciudad empieza contigo" : "Todavía no hay publicaciones aquí"}</h3><p>{tab === "all" ? "Comparte tu primera teoría o cuéntanos qué esperas de GTA VI." : "Abre la conversación con un video o una pregunta sobre el sorteo."}</p></div> : visiblePosts.map((post) => {
               const liked = Boolean(user && post.likedBy.includes(user.uid));
+              const postStats = replyStats[post.id];
+              const replyCount = postStats?.count ?? post.replyCount ?? 0;
+              const lastAuthor = postStats?.lastAuthor ?? post.lastReplyAuthor;
+              const lastTime = postStats?.lastTime ?? post.lastReplyAt;
+              const isDrawerOpen = activeCommentPost === post.id;
+
               return <article key={post.id} id={`post-${post.id}`} className={styles.post}>
                 <div className={styles.postHeader}><Link href={`/usuario/${post.authorId}`} aria-label={`Perfil de ${post.authorName}`}><Avatar name={post.authorName} photo={post.authorPhoto} /></Link><div><Link href={`/usuario/${post.authorId}`}>{post.authorName}</Link><time dateTime={new Date(post.createdAt).toISOString()}>{timeAgo(post.createdAt)}</time></div></div>
                 <div className={styles.postContent}>{renderContent(post.content)}</div>
+
+                {replyCount > 0 && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setActiveCommentPost(isDrawerOpen ? null : post.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setActiveCommentPost(isDrawerOpen ? null : post.id);
+                      }
+                    }}
+                    className="mt-3 cursor-pointer group flex items-center justify-between text-xs bg-[#161722]/90 hover:bg-[#1c1e2b] border border-neutral-800/80 hover:border-pink-500/40 rounded-xl px-3.5 py-2.5 transition-all select-none"
+                    title={isDrawerOpen ? "Ocultar respuestas" : "Desplegar conversación"}
+                  >
+                    <div className="flex items-center gap-2 flex-wrap text-neutral-300">
+                      <span className="font-bold text-pink-400 font-mono flex items-center gap-1.5">
+                        <span>💬</span>
+                        <span>{replyCount} {replyCount === 1 ? "respuesta" : "respuestas"}</span>
+                      </span>
+                      {lastAuthor && (
+                        <span className="text-neutral-400 text-[11px]">
+                          · Última de <strong className="text-neutral-200 group-hover:text-pink-300 transition-colors">{lastAuthor}</strong>
+                          {lastTime ? ` (${timeAgo(lastTime)})` : ""}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-pink-400 group-hover:translate-x-0.5 transition-transform text-[11px] font-bold font-mono ml-2 shrink-0">
+                      {isDrawerOpen ? "Ocultar ▲" : "Ver respuestas ↗"}
+                    </span>
+                  </div>
+                )}
+
                 <div className={styles.postActions}>
-                  <button type="button" className={liked ? styles.liked : ""} aria-pressed={liked} aria-label={`${liked ? "Quitar" : "Dar"} me gusta a la publicación de ${post.authorName}`} disabled={busyLikes.includes(post.id)} onClick={() => void handleLike(post)}><svg viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /></svg>{post.likedBy.length || "Me gusta"}</button>
-                  <button type="button" aria-expanded={activeCommentPost === post.id} onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" /></svg>Responder</button>
+                  <button
+                    type="button"
+                    className={liked ? styles.liked : ""}
+                    aria-pressed={liked}
+                    aria-label={`${liked ? "Quitar" : "Dar"} me gusta a la publicación de ${post.authorName}`}
+                    disabled={busyLikes.includes(post.id)}
+                    onClick={() => void handleLike(post)}
+                  >
+                    <svg viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" />
+                    </svg>
+                    <span>{liked ? "Te gusta" : "Me gusta"}</span>
+                    {post.likedBy.length > 0 && (
+                      <span className="text-[10px] bg-pink-500/20 text-pink-300 font-bold px-1.5 py-0.5 rounded-full ml-0.5 font-mono">
+                        {post.likedBy.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={isDrawerOpen ? "text-pink-400 font-semibold" : ""}
+                    aria-expanded={isDrawerOpen}
+                    onClick={() => setActiveCommentPost(isDrawerOpen ? null : post.id)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" />
+                    </svg>
+                    <span>{replyCount > 0 ? `${replyCount} ${replyCount === 1 ? "respuesta" : "respuestas"}` : "Responder"}</span>
+                    {replyCount > 0 && (
+                      <span className="text-[10px] text-neutral-400 font-mono ml-0.5">
+                        {isDrawerOpen ? "▲" : "▼"}
+                      </span>
+                    )}
+                  </button>
+
                   {user && user.uid === post.authorId && (
                     postToDelete === post.id ? (
                       <div className="flex items-center gap-2 bg-red-950/40 border border-red-800/60 px-2.5 py-1 rounded-lg text-xs ml-auto">
@@ -285,7 +510,17 @@ export default function ComunidadPage() {
                     )
                   )}
                 </div>
-                {activeCommentPost === post.id && <CommentSection postId={post.id} user={user} hasProfile={hasProfile} onLogin={() => setAuthOpen(true)} />}
+
+                {isDrawerOpen && (
+                  <CommentSection
+                    postId={post.id}
+                    postAuthorId={post.authorId}
+                    user={user}
+                    hasProfile={hasProfile}
+                    onLogin={() => setAuthOpen(true)}
+                    onCountChange={(count, author, time) => handleReplyCountChange(post.id, count, author, time)}
+                  />
+                )}
               </article>;
             })}
           </section>
