@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { auth, googleProvider, db } from "@/app/lib/firebase";
 import { signInWithPopup, signOut } from "firebase/auth";
-import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, limit, orderBy, doc, deleteDoc } from "firebase/firestore";
 import { readUserProfile, type UserProfile } from "@/app/lib/profiles";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import { ProfileActionError, saveUserProfile } from "@/app/lib/profile-actions";
@@ -25,6 +25,8 @@ export default function PerfilPage() {
   // Publicaciones del usuario
   const [userPosts, setUserPosts] = useState<{ id: string; content: string; createdAt: number; likedBy: string[] }[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [isDeletingPost, setIsDeletingPost] = useState<string | null>(null);
   
   const [newUsername, setNewUsername] = useState("");
   const [newBio, setNewBio] = useState("");
@@ -114,6 +116,21 @@ export default function PerfilPage() {
       await signOut(auth);
     } catch (error) {
       console.error("Error al salir:", error);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!user) return;
+    setIsDeletingPost(postId);
+    try {
+      await deleteDoc(doc(db, "posts", postId));
+      setUserPosts((prev) => prev.filter((p) => p.id !== postId));
+      setPostToDelete(null);
+      setNotice("Publicación eliminada correctamente.");
+    } catch {
+      setNotice("No se pudo eliminar la publicación. Inténtalo nuevamente.");
+    } finally {
+      setIsDeletingPost(null);
     }
   };
 
@@ -326,6 +343,38 @@ export default function PerfilPage() {
                       >
                         Ver conversación ↗
                       </Link>
+                      {postToDelete === post.id ? (
+                        <span className="inline-flex items-center gap-1.5 bg-red-950/40 border border-red-800/50 px-2 py-0.5 rounded text-[10px]">
+                          <span className="text-red-300">¿Borrar?</span>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeletePost(post.id)}
+                            disabled={isDeletingPost === post.id}
+                            className="text-red-400 font-bold hover:underline"
+                          >
+                            {isDeletingPost === post.id ? "..." : "Sí"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPostToDelete(null)}
+                            className="text-neutral-400 hover:text-white"
+                          >
+                            No
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPostToDelete(post.id)}
+                          className="text-neutral-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
+                          title="Eliminar publicación"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Borrar</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

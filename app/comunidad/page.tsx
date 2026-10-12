@@ -5,7 +5,7 @@ import Link from "next/link";
 import { db } from "@/app/lib/firebase";
 import { type User } from "firebase/auth";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
-import { collection, addDoc, query, orderBy, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, query, orderBy, limit, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
 import AuthModal from "@/app/components/AuthModal";
 import GiveawayCard from "@/app/components/GiveawayCard";
 import styles from "@/app/components/Hub.module.css";
@@ -66,6 +66,9 @@ function CommentSection({ postId, user, hasProfile, onLogin }: { postId: string;
   const [isSending, setIsSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [replyToDelete, setReplyToDelete] = useState<string | null>(null);
+  const [isDeletingReply, setIsDeletingReply] = useState<string | null>(null);
+
   useEffect(() => {
     return onSnapshot(query(collection(db, "posts", postId, "comments"), orderBy("createdAt", "asc")), (snapshot) => {
       setComments(snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Reply));
@@ -84,12 +87,63 @@ function CommentSection({ postId, user, hasProfile, onLogin }: { postId: string;
     finally { setIsSending(false); }
   }
 
+  async function handleDeleteReply(replyId: string) {
+    setIsDeletingReply(replyId);
+    try {
+      await deleteDoc(doc(db, "posts", postId, "comments", replyId));
+      setReplyToDelete(null);
+    } catch {
+      setError("No se pudo eliminar la respuesta. Inténtalo nuevamente.");
+    } finally {
+      setIsDeletingReply(null);
+    }
+  }
+
   return <section className={styles.comments} aria-label="Respuestas">
     {error && <p role="alert" className={styles.error}>{error}</p>}
     {loading ? <p className={styles.panelNote}>Cargando respuestas…</p> : comments.length === 0 && <p className={styles.panelNote}>Abre la conversación. Todavía no hay respuestas.</p>}
     {comments.map((reply) => <div key={reply.id} className={styles.comment}>
       <Avatar name={reply.authorName} photo={reply.authorPhoto} />
-      <div className={styles.commentBody}><Link href={`/usuario/${reply.authorId}`}>{reply.authorName}</Link><p>{reply.content}</p></div>
+      <div className={styles.commentBody}>
+        <div className="flex items-center justify-between gap-2">
+          <Link href={`/usuario/${reply.authorId}`}>{reply.authorName}</Link>
+          {user && user.uid === reply.authorId && (
+            replyToDelete === reply.id ? (
+              <span className="inline-flex items-center gap-1.5 text-[11px] bg-red-950/40 border border-red-800/50 px-2 py-0.5 rounded">
+                <span className="text-red-300">¿Borrar?</span>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteReply(reply.id)}
+                  disabled={isDeletingReply === reply.id}
+                  className="text-red-400 font-bold hover:underline"
+                >
+                  {isDeletingReply === reply.id ? "..." : "Sí"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReplyToDelete(null)}
+                  className="text-neutral-400 hover:text-white"
+                >
+                  No
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setReplyToDelete(reply.id)}
+                className="text-[11px] text-neutral-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
+                title="Eliminar respuesta"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Borrar</span>
+              </button>
+            )
+          )}
+        </div>
+        <p>{reply.content}</p>
+      </div>
     </div>)}
     {!user ? <button className={styles.smallButton} onClick={onLogin}>Iniciar sesión para responder</button> : !hasProfile ? <Link href="/perfil" className={styles.smallButton}>Completar mi perfil</Link> : (
       <form className={styles.replyForm} onSubmit={(event) => { event.preventDefault(); void sendReply(); }}>
@@ -112,12 +166,14 @@ export default function ComunidadPage() {
   const [tab, setTab] = useState("all");
   const [error, setError] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [isDeletingPost, setIsDeletingPost] = useState<string | null>(null);
   const pendingLikes = useRef(new Set<string>());
   const [busyLikes, setBusyLikes] = useState<string[]>([]);
 
   async function fetchPosts() {
     try {
-      const snapshot = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
+      const snapshot = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(30)));
       setPosts(snapshot.docs.map((item) => {
         const data = item.data();
         return { ...data, id: item.id, likedBy: Array.isArray(data.likedBy) ? data.likedBy : [] } as Post;
@@ -126,6 +182,21 @@ export default function ComunidadPage() {
     finally { setLoadingPosts(false); }
   }
   useEffect(() => { void fetchPosts(); }, []);
+
+  async function handleDeletePost(postId: string) {
+    if (!user) return;
+    setIsDeletingPost(postId);
+    setError("");
+    try {
+      await deleteDoc(doc(db, "posts", postId));
+      setPosts((previous) => previous.filter((item) => item.id !== postId));
+      setPostToDelete(null);
+    } catch {
+      setError("No se pudo eliminar la publicación. Inténtalo nuevamente.");
+    } finally {
+      setIsDeletingPost(null);
+    }
+  }
 
   async function handlePublish() {
     if (!newPost.trim() || !user || !hasProfile || isPublishing) return;
@@ -179,6 +250,40 @@ export default function ComunidadPage() {
                 <div className={styles.postActions}>
                   <button type="button" className={liked ? styles.liked : ""} aria-pressed={liked} aria-label={`${liked ? "Quitar" : "Dar"} me gusta a la publicación de ${post.authorName}`} disabled={busyLikes.includes(post.id)} onClick={() => void handleLike(post)}><svg viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /></svg>{post.likedBy.length || "Me gusta"}</button>
                   <button type="button" aria-expanded={activeCommentPost === post.id} onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" /></svg>Responder</button>
+                  {user && user.uid === post.authorId && (
+                    postToDelete === post.id ? (
+                      <div className="flex items-center gap-2 bg-red-950/40 border border-red-800/60 px-2.5 py-1 rounded-lg text-xs ml-auto">
+                        <span className="text-red-200 text-[11px]">¿Eliminar publicación?</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeletePost(post.id)}
+                          disabled={isDeletingPost === post.id}
+                          className="text-red-400 hover:text-red-300 font-bold px-2 py-0.5 bg-red-900/40 rounded transition-colors text-[11px]"
+                        >
+                          {isDeletingPost === post.id ? "Borrando..." : "Sí"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPostToDelete(null)}
+                          className="text-neutral-400 hover:text-white text-[11px]"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setPostToDelete(post.id)}
+                        className="text-neutral-500 hover:text-red-400 transition-colors ml-auto flex items-center gap-1.5 text-[11px]"
+                        title="Eliminar publicación"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>Eliminar</span>
+                      </button>
+                    )
+                  )}
                 </div>
                 {activeCommentPost === post.id && <CommentSection postId={post.id} user={user} hasProfile={hasProfile} onLogin={() => setAuthOpen(true)} />}
               </article>;
