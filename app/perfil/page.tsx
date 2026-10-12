@@ -253,7 +253,7 @@ export default function PerfilPage() {
                 title="Ver lista de seguidores"
               >
                 <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{profileData?.followers?.length || 0}</span>
-                <span className="text-[#6c7083] group-hover:underline">Seguidores</span>
+                <span className="text-neutral-400 group-hover:underline">Seguidores</span>
               </button>
               <button
                 type="button"
@@ -262,11 +262,11 @@ export default function PerfilPage() {
                 title="Ver lista de seguidos"
               >
                 <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{profileData?.following?.length || 0}</span>
-                <span className="text-[#6c7083] group-hover:underline">Siguiendo</span>
+                <span className="text-neutral-400 group-hover:underline">Siguiendo</span>
               </button>
               <div className="flex flex-col gap-0.5 ml-4 border-l border-neutral-800 pl-8">
                 <span className="text-pink-400 font-bold">{profileData?.tickets || 0}</span>
-                <span className="text-[#6c7083]">Tickets de Rifa</span>
+                <span className="text-neutral-400">Tickets Sorteo PS5</span>
               </div>
             </div>
           </div>
@@ -276,9 +276,9 @@ export default function PerfilPage() {
         <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 shadow-lg">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-[15px] font-semibold text-white">Estadísticas de Actividad</h2>
-            <span className="text-[13px] font-semibold px-2.5 py-1 rounded-md bg-[#1b1c26] text-[#6c7083]">Nivel {profileData?.reputation ? Math.floor(profileData.reputation / 100) + 1 : 1}</span>
+            <span className="text-[13px] font-semibold px-2.5 py-1 rounded-md bg-[#1b1c26] text-neutral-300">Nivel {profileData?.reputation ? Math.floor(profileData.reputation / 100) + 1 : 1}</span>
           </div>
-          <p className="text-[13px] text-[#6c7083] mb-1">Reputación Total (RP)</p>
+          <p className="text-[13px] text-neutral-400 mb-1">Reputación Total (RP)</p>
           <h3 className="text-[32px] font-bold text-white tracking-tight">{profileData?.reputation || 0}</h3>
         </div>
 
@@ -397,7 +397,7 @@ export default function PerfilPage() {
                   <span className={user ? 'text-green-500 font-bold' : 'text-red-500 text-lg'}>{user ? '✓' : 'G'}</span>
                 </div>
                 <div className="overflow-hidden w-full">
-                  <p className="text-[12px] text-[#6c7083] mb-0.5">{user ? 'Conectado como' : 'Vincular correo'}</p>
+                  <p className="text-[12px] text-neutral-400 mb-0.5">{user ? 'Conectado como' : 'Vincular correo'}</p>
                   <p className="text-[14px] font-semibold text-white leading-none truncate">{user ? user.email : 'Google'}</p>
                 </div>
               </div>
@@ -420,12 +420,13 @@ export default function PerfilPage() {
               recommended.map((recUser) => (
                 <div key={recUser.uid} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={recUser.photoURL || PROFILE_AVATARS[0].src} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-neutral-700" />
                     <div className="flex flex-col">
                       <Link href={`/usuario/${recUser.uid}`} className="text-[14px] font-bold text-white hover:underline">
                         {recUser.displayName}
                       </Link>
-                      <span className="text-[12px] text-[#6c7083] truncate max-w-[120px]">{recUser.bio}</span>
+                      <span className="text-[12px] text-neutral-400 truncate max-w-[120px]">{recUser.bio}</span>
                     </div>
                   </div>
                   <Link href={`/usuario/${recUser.uid}`} className="px-3 py-1.5 rounded-lg bg-[#1b1c26] hover:bg-white hover:text-black text-[12px] font-bold text-white transition-all">
@@ -434,7 +435,7 @@ export default function PerfilPage() {
                 </div>
               ))
             ) : (
-              <p className="text-[13px] text-[#6c7083] text-center py-4">No hay usuarios disponibles aún.</p>
+              <p className="text-[13px] text-neutral-400 text-center py-4">No hay usuarios disponibles aún.</p>
             )}
           </div>
         </div>

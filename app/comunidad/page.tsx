@@ -394,7 +394,31 @@ export default function ComunidadPage() {
             </form>
             {(error || profileError) && <p role="alert" className={styles.error}>{error || profileError}</p>}
             <div className={styles.feedTools}><div className={styles.tabs} aria-label="Filtrar publicaciones">{[{ id: "all", label: "El muro" }, { id: "videos", label: "Videos" }, { id: "giveaway", label: "Sorteo" }].map((item) => <button key={item.id} type="button" className={tab === item.id ? styles.activeTab : ""} aria-pressed={tab === item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}</div><span className={styles.feedCount}>{visiblePosts.length} posts</span></div>
-            {loadingPosts ? <div role="status" className={styles.empty}><p>Cargando la comunidad…</p></div> : visiblePosts.length === 0 ? <div className={styles.empty}><h3>{tab === "all" ? "La ciudad empieza contigo" : "Todavía no hay publicaciones aquí"}</h3><p>{tab === "all" ? "Comparte tu primera teoría o cuéntanos qué esperas de GTA VI." : "Abre la conversación con un video o una pregunta sobre el sorteo."}</p></div> : visiblePosts.map((post) => {
+            {loadingPosts ? (
+              <div className="flex flex-col gap-4 py-2" role="status">
+                <div className="h-32 rounded-2xl bg-[#141522] border border-neutral-800/60 animate-pulse p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-lg bg-neutral-800/80"></div>
+                    <div className="w-28 h-4 rounded bg-neutral-800/80"></div>
+                  </div>
+                  <div className="w-3/4 h-3.5 rounded bg-neutral-800/60 mb-2"></div>
+                  <div className="w-1/2 h-3 rounded bg-neutral-800/40"></div>
+                </div>
+                <div className="h-32 rounded-2xl bg-[#141522] border border-neutral-800/60 animate-pulse p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-lg bg-neutral-800/80"></div>
+                    <div className="w-32 h-4 rounded bg-neutral-800/80"></div>
+                  </div>
+                  <div className="w-2/3 h-3.5 rounded bg-neutral-800/60"></div>
+                </div>
+              </div>
+            ) : visiblePosts.length === 0 ? (
+              <div className={styles.empty}>
+                <span className="text-3xl block mb-2">🌴</span>
+                <h3>{tab === "all" ? "La ciudad empieza contigo" : "Todavía no hay publicaciones aquí"}</h3>
+                <p>{tab === "all" ? "Comparte tu primera teoría, un clip de YouTube o cuéntanos qué esperas de Vice City." : "Sé el primero en compartir un video o debate en esta categoría."}</p>
+              </div>
+            ) : visiblePosts.map((post) => {
               const liked = Boolean(user && post.likedBy.includes(user.uid));
               const postStats = replyStats[post.id];
               const replyCount = postStats?.count ?? post.replyCount ?? 0;

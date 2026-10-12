@@ -167,7 +167,7 @@ export default function PerfilPublico() {
               title="Ver seguidores"
             >
               <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{publicProfile.followers?.length || 0}</span>
-              <span className="text-[#6c7083] group-hover:underline">Seguidores</span>
+              <span className="text-neutral-400 group-hover:underline">Seguidores</span>
             </button>
             <button
               type="button"
@@ -176,11 +176,11 @@ export default function PerfilPublico() {
               title="Ver seguidos"
             >
               <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{publicProfile.following?.length || 0}</span>
-              <span className="text-[#6c7083] group-hover:underline">Siguiendo</span>
+              <span className="text-neutral-400 group-hover:underline">Siguiendo</span>
             </button>
             <div className="flex flex-col gap-0.5 ml-4 border-l border-neutral-800 pl-8">
               <span className="text-pink-400 font-bold">Nivel {Math.floor((publicProfile.reputation || 0) / 100) + 1}</span>
-              <span className="text-[#6c7083]">{publicProfile.reputation || 0} RP</span>
+              <span className="text-neutral-400">{publicProfile.reputation || 0} RP</span>
             </div>
           </div>
         </div>

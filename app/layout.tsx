@@ -1,11 +1,20 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import ClientLayout from "@/app/components/ClientLayout";
+
+const fontSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  weight: ["400", "500", "600", "700", "800"],
+});
 
 export const viewport: Viewport = {
   themeColor: "#0d0d12",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -76,10 +85,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" className={fontSans.variable} suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className="antialiased bg-[#0d0d12] text-white min-h-screen pb-20 md:pb-0 relative"
+        className={`${fontSans.className} antialiased bg-[#0c0d14] text-[#f8fafc] min-h-screen relative selection:bg-pink-500 selection:text-white`}
       >
         <ClientLayout>{children}</ClientLayout>
       </body>

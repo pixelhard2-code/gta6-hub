@@ -98,32 +98,43 @@
   .finalCta > div:last-child { min-width:0; }
 }
 
-@media (max-width:1000px) {
-  .hero { min-height:680px; padding-top:112px; padding-bottom:54px; }
-  .hero h1 { font-size:68px; }
-  .heroVisual > img { object-position:60% 30%; }
+@media (max-width:1024px) {
+  .hero { min-height:660px; padding:110px 32px 50px; }
+  .hero h1 { font-size:clamp(48px,6vw,68px); }
+  .heroVisual > img { object-position:65% 25%; }
+  .hero::after { background:linear-gradient(90deg,rgba(9,8,18,.85) 0%,rgba(9,8,18,.55) 55%,rgba(9,8,18,.15) 85%); }
 }
 @media (max-width:700px) {
-  .hero { min-height:760px; align-items:flex-start; padding:100px 22px 240px; }
+  .hero {
+    min-height:auto;
+    min-height:calc(100svh - 64px);
+    align-items:flex-start;
+    padding:84px 20px 40px;
+    background:#0f0a14;
+  }
   .heroCopy { width:100%; }
-  .hero h1 { font-size:clamp(52px,12vw,72px); }
-  .kicker { font-size:10px; }
-  .heroDescription { font-size:14px; max-width:340px; }
+  .hero h1 { font-size:clamp(42px,11vw,58px); letter-spacing:-.035em; line-height:1.02; }
+  .kicker { font-size:10px; margin-bottom:10px; }
+  .heroDescription { font-size:14px; max-width:100%; line-height:1.6; margin-top:14px; }
   .desktopBreak { display:none; }
-  .heroVisual > img { object-position:70% 30%; }
-  .hero::after { background:linear-gradient(180deg,rgba(9,8,18,.7),rgba(9,8,18,.55) 60%,rgba(9,8,18,.12)),linear-gradient(90deg,rgba(9,8,18,.45),transparent); }
-  .countdownBlock { max-width:390px; }
-  .countdown { gap:8px; }
-  .countdown > div { padding:16px 6px 12px; gap:8px; }
-  .countdown strong { font-size:clamp(32px,10vw,44px); }
-  .countdown span { font-size:10px; }
-  .heroActions { gap:10px; }
-  .heroActions > a:first-child, .heroActions > a { flex:initial; padding:12px 15px; }
-  .sceneCaption { bottom:24px; right:22px; }
+  .heroVisual > img { object-position:center 15%; filter:brightness(.85); }
+  .hero::after {
+    background:linear-gradient(180deg,rgba(9,8,18,.82) 0%,rgba(9,8,18,.58) 50%,rgba(9,8,18,.92) 100%);
+  }
+  .countdownBlock { max-width:100%; margin-top:20px; }
+  .countdown { gap:6px; }
+  .countdown > div { padding:12px 4px 10px; gap:6px; border-radius:6px; }
+  .countdown strong { font-size:clamp(26px,8vw,36px); }
+  .countdown span { font-size:9px; letter-spacing:.08em; }
+  .clockNote { font-size:10px; margin-top:8px; }
+  .heroActions { gap:10px; margin-top:18px; flex-direction:column; align-items:stretch; }
+  .heroActions > a:first-child, .heroActions > a { width:100%; min-height:48px; padding:12px 18px; justify-content:center; }
+  .sceneCaption { display:none; }
 }
 @media (max-width:370px) {
-  .heroActions { flex-direction:column; align-items:stretch; }
-  .hero { min-height:830px; }
+  .hero { padding:76px 16px 36px; }
+  .hero h1 { font-size:38px; }
+  .countdown strong { font-size:24px; }
 }
 @media (prefers-reduced-motion:reduce) {
   .heroActions > a, .secondaryButton { transition:none; }
