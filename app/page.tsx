@@ -24,7 +24,7 @@ export default function Home() {
           <ReleaseCountdown />
           <div className={styles.heroActions}>
             <Link href="/sorteos#tickets" className={hub.primaryButton}>
-              <span>Ver tickets del sorteo</span>
+              <span>Ver stickers digitales</span>
               <span aria-hidden="true">↗</span>
             </Link>
             <Link href="/comunidad" className={styles.secondaryButton}>
@@ -69,23 +69,23 @@ export default function Home() {
               <p className={styles.smallLabel}>Sorteo para la comunidad</p>
               <h3>Una PS5 + GTA VI<br /><em>Podría ser tuya</em></h3>
               <p>
-                La primera misión empieza aquí. Selecciona un paquete y participa por una consola PlayStation 5 junto a GTA VI en el sorteo oficial de nuestra comunidad.
+                Compra stickers digitales de LeonidaCrew y recíbelos por correo. Cada sticker incluye 1 ticket para participar en el sorteo promocional de una PlayStation 5 + GTA VI.
               </p>
               <div className={styles.homePackages}>
                 {TICKET_PACKAGES.map((item) => (
                   <Link key={item.id} href={`/sorteos?paquete=${item.id}#tickets`}>
-                    <span>{item.tickets} {item.tickets === 1 ? "ticket" : "tickets"}</span>
+                    <span>{item.tickets} {item.tickets === 1 ? "sticker" : "stickers"}</span>
                     <strong>${item.price} <small>USD</small></strong>
                     <span>{item.highlight ? "Mejor valor ↗" : "Elegir ↗"}</span>
                   </Link>
                 ))}
               </div>
               <Link href="/sorteos#tickets" className={hub.primaryButton}>
-                <span>Quiero participar</span>
+                <span>Elegir mis stickers</span>
                 <span aria-hidden="true">→</span>
               </Link>
               <p className={styles.giveawayNote}>
-                ⚡ Pre-selección abierta para la comunidad. Pagos habilitándose próximamente.
+                ⚡ 1 sticker = 1 ticket. Venta y entrega por correo próximamente.
               </p>
             </div>
           </div>
@@ -113,7 +113,7 @@ export default function Home() {
           </div>
           <div>
             <Link href="/sorteos#tickets" className={hub.primaryButton}>
-              <span>Ver tickets del sorteo</span>
+              <span>Ver stickers digitales</span>
               <span aria-hidden="true">↗</span>
             </Link>
             <Link href="/comunidad#new-post" className={styles.secondaryButton}>

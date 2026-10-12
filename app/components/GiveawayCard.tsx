@@ -14,14 +14,14 @@ export interface TicketPackage {
 export const TICKET_PACKAGES: TicketPackage[] = [
   {
     id: "basic",
-    name: "Entrada Básica",
+    name: "Pack Básico",
     tickets: 1,
     price: 3,
     unitPrice: "$3.00 c/u",
   },
   {
     id: "double",
-    name: "Pack Doble Chance",
+    name: "Pack Doble",
     tickets: 2,
     price: 5,
     unitPrice: "$2.50 c/u",
@@ -44,12 +44,12 @@ export function PrizeArtwork({ compact = false }: { compact?: boolean }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=1000&q=80"
-        alt="Consola PlayStation 5 edición especial GTA VI"
+        alt="Consola PlayStation 5, premio del sorteo promocional"
         width={1000}
         height={750}
         loading="lazy"
       />
-      <span className={styles.artLabel}>LeonidaCrew / SORTEO OFICIAL</span>
+      <span className={styles.artLabel}>LeonidaCrew / SORTEO PROMOCIONAL</span>
       <div className={styles.artTitle}>
         <span>WELCOME TO</span>
         <strong>VICE CITY.</strong>
@@ -62,23 +62,23 @@ export function PrizeArtwork({ compact = false }: { compact?: boolean }) {
 
 export default function GiveawayCard() {
   return (
-    <section className={styles.giveawayCard} aria-label="Sorteo oficial de la comunidad">
+    <section className={styles.giveawayCard} aria-label="Sorteo promocional de la comunidad">
       <PrizeArtwork compact />
       <div className={styles.giveawayBody}>
         <div className="flex items-center gap-2 mb-2">
           <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span>
-          <p className={styles.eyebrow} style={{ margin: 0 }}>Sorteo de la Crew</p>
+          <p className={styles.eyebrow} style={{ margin: 0 }}>Sorteo promocional de la Crew</p>
         </div>
         <h2>Una PS5 + GTA VI. Tu próxima partida.</h2>
-        <p>Participa por una PlayStation 5 junto al lanzamiento más esperado de la historia.</p>
+        <p>Compra stickers digitales y recíbelos por correo. Cada sticker incluye 1 ticket para el sorteo de una PS5 + GTA VI.</p>
         
         <div className={styles.cardPrice}>
           <span>Desde <strong>$3 USD</strong></span>
-          <span>1 / 2 / 5 tickets disponibles</span>
+          <span>Packs de 1 / 2 / 5 stickers</span>
         </div>
         
         <Link href="/sorteos#tickets" className={styles.primaryButton}>
-          <span>Elegir mis tickets</span>
+          <span>Elegir mis stickers</span>
           <span aria-hidden="true">↗</span>
         </Link>
       </div>

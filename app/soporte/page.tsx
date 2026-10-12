@@ -10,11 +10,11 @@ import styles from "@/app/components/Hub.module.css";
 const FAQ_ITEMS = [
   {
     question: "¿Cómo sé cuántos tickets tengo para el sorteo de la PS5?",
-    answer: "Puedes consultar tus tickets en cualquier momento desde tu Perfil. Cada compra confirmada a través del sistema suma tickets automáticamente a tu balance personal.",
+    answer: "Cuando se habilite la venta, cada sticker digital comprado incluirá 1 ticket para el sorteo promocional. Los stickers se enviarán al correo indicado al comprar y podrás consultar los tickets asociados a tu compra desde tu Perfil.",
   },
   {
     question: "¿Cuándo se realizará el sorteo y cómo se elegirá al ganador?",
-    answer: "La fecha exacta de cierre y el sorteo público se anunciarán en la comunidad y en la página de Sorteos antes de habilitar la compra definitiva de tickets. El ganador se seleccionará de manera transparente y verificable.",
+    answer: "La fecha de cierre, el procedimiento y las bases del sorteo promocional se publicarán en la comunidad y en la página de Sorteos antes de habilitar la venta de stickers digitales. El ganador se seleccionará de manera transparente y verificable.",
   },
   {
     question: "¿Por qué se exige una biografía para seguir a otros usuarios o publicar?",
@@ -201,7 +201,7 @@ export default function SoportePage() {
                     onChange={(e) => setTopic(e.target.value)}
                     className="w-full bg-[#1b1c26] border border-neutral-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-pink-500"
                   >
-                    <option value="tickets">Consulta sobre Sorteo o Tickets</option>
+                    <option value="tickets">Consulta sobre Stickers o Sorteo</option>
                     <option value="bug">Reportar un error o Bug en la web</option>
                     <option value="account">Problema con mi Cuenta o Perfil</option>
                     <option value="moderation">Reportar contenido o usuario</option>

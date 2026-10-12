@@ -51,7 +51,7 @@ export default function DesktopHeader({ signedIn, displayName, photo, onSignIn }
         })}
       </nav>
       <div className={styles.actions}>
-        <Link href="/sorteos#tickets" className={styles.ticketButton}>Ver tickets <span aria-hidden="true">↗</span></Link>
+        <Link href="/sorteos#tickets" className={styles.ticketButton}>Ver stickers <span aria-hidden="true">↗</span></Link>
         <span className={styles.separator} aria-hidden="true" />
         {signedIn ? <Link href="/perfil" className={styles.profile} aria-label={`Mi perfil: ${displayName}`}>
           <span className={styles.avatar}>{photo ? (
