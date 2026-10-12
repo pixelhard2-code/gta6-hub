@@ -47,7 +47,12 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
   openGraph: {
     title: "LeonidaCrew — La espera de GTA VI también se juega",
@@ -86,6 +91,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={fontSans.variable} suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+      </head>
       <body
         suppressHydrationWarning
         className={`${fontSans.className} antialiased bg-[#0c0d14] text-[#f8fafc] min-h-screen relative selection:bg-pink-500 selection:text-white`}
