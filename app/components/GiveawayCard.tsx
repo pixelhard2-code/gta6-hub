@@ -26,7 +26,7 @@ export default function GiveawayCard() {
       <PrizeArtwork compact />
       <div className={styles.giveawayBody}>
         <p className={styles.eyebrow}>Sorteo de la comunidad</p>
-        <h2>Una PS5. Tu próxima historia.</h2>
+        <h2>Una PS5. Tu próxima historia</h2>
         <p>Participa por una PS5 + GTA VI. Elige tus tickets antes del cierre del sorteo.</p>
         <div className={styles.cardPrice}><span>Desde <strong>$3 USD</strong></span><span>1 / 2 / 5 tickets</span></div>
         <Link href="/sorteos#tickets" className={styles.primaryButton}>Elegir mis tickets <span aria-hidden="true">↗</span></Link>

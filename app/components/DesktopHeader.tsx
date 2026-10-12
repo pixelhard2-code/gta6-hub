@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import styles from "./DesktopLayout.module.css";
 
@@ -26,8 +27,15 @@ function NavIcon({ type }: { type: (typeof LINKS)[number]["icon"] }) {
 
 export default function DesktopHeader({ signedIn, displayName, photo, onSignIn }: DesktopHeaderProps) {
   const pathname = usePathname();
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 24);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
 
-  return <header className={styles.desktopHeader}>
+  return <header className={`${styles.desktopHeader} ${pathname === "/" ? styles.homeHeader : ""} ${scrolled ? styles.scrolledHeader : ""}`}>
     <a className={styles.skipLink} href="#site-content">Saltar al contenido</a>
     <div className={styles.headerInner}>
       <Link href="/" className={styles.brand} aria-label="GTA6HUB — Inicio">

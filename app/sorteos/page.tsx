@@ -22,7 +22,7 @@ export default function SorteosPage() {
           <section className={styles.prizeColumn} aria-labelledby="prize-title">
             <PrizeArtwork />
             <div className={styles.prizeCaption}><span>EL PREMIO / PS5 + GTA VI</span><span>PARA LA COMUNIDAD</span></div>
-            <h1 id="prize-title" className={styles.prizeHeading}>La próxima PS5<br />podría ser <em>la tuya.</em></h1>
+            <h1 id="prize-title" className={styles.prizeHeading}>La próxima PS5<br />podría ser <em>la tuya</em></h1>
             <p className={styles.description}>Vice City se disfruta mejor con consola propia. Participa por una PS5 + GTA VI y empieza a imaginar tu primera partida.</p>
           </section>
 

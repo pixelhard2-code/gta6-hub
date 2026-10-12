@@ -1,32 +1,29 @@
 .home { overflow:clip; }
-.hero { display:grid; grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr); gap:44px; padding:18px 0 40px; align-items:center; }
-.heroCopy { min-width:0; padding:8px 0; }
-.kicker { display:flex; align-items:center; gap:10px; font:10px/1.7 monospace; letter-spacing:.08em; text-transform:uppercase; color:#d6bdca; margin:0 0 24px; }
-.kicker > span { width:6px; height:6px; background:#efb69e; border-radius:50%; }
-.hero h1 { font-size:clamp(52px,5.8vw,76px); font-weight:800; line-height:.99; letter-spacing:-.055em; margin:0; }
-.hero h1 em { color:#f3b5a7; font-style:normal; }
-.heroDescription { font-size:14px; line-height:1.85; max-width:390px; color:#b9b3c1; margin:24px 0 0; }
-.heroVisual { position:relative; min-width:0; align-self:stretch; background:#17131c; border:1px solid #37303f; border-radius:8px; overflow:hidden; min-height:570px; }
-.heroVisual > img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 35%; }
-.heroVisual::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(13,13,18,.06) 40%,rgba(13,13,18,.85) 100%); pointer-events:none; }
-.artFooter { display:flex; justify-content:space-between; gap:8px; position:absolute; inset:18px 18px auto; z-index:1; font:8px/1.5 monospace; letter-spacing:.09em; color:white; text-shadow:0 1px 4px black; }
-.releaseBadge { position:absolute; left:24px; bottom:24px; z-index:1; display:grid; gap:9px; }
-.releaseBadge > span { color:#e5cad9; font:10px/1.4 monospace; letter-spacing:.12em; text-transform:uppercase; }
-.releaseBadge strong { font-weight:800; font-size:40px; line-height:1; letter-spacing:-.04em; color:#fff7f2; }
-.releaseBadge em { font-size:23px; font-style:normal; color:#f3b5a7; margin-left:6px; }
-.countdownBlock { margin-top:28px; padding:22px 0; border-top:1px solid #34303a; border-bottom:1px solid #34303a; }
-.countdownHeading { font-size:11px; color:#d7c1ce; margin:0 0 16px; }
-.countdown { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
-.countdown > div { display:flex; flex-direction:column; gap:8px; border-right:1px solid #332d3d; padding-left:14px; }
-.countdown > div:first-child { padding-left:0; }
-.countdown > div:last-child { border-right:none; }
-.countdown strong { font-size:40px; font-weight:600; letter-spacing:-.055em; line-height:1; font-variant-numeric:tabular-nums; }
-.countdown span { font:9px/1.4 monospace; color:#ac9db6; text-transform:uppercase; letter-spacing:.12em; }
-.clockNote { font:9px/1.8 monospace; color:#928696; margin:14px 0 0; }
-.heroActions { display:flex; gap:12px; margin-top:24px; flex-wrap:wrap; }
-.heroActions > a:first-child { width:auto; flex:1; font-size:12px; }
-.secondaryButton { display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:12px 18px; border:1px solid #443b4a; border-radius:5px; color:#dfd4e6; text-decoration:none; font-size:12px; font-weight:600; }
-.secondaryButton:hover { background:#211c28; border-color:#7e6b8c; }
+.hero { position:relative; isolation:isolate; min-height:720px; padding:120px max(28px,calc((100vw - 1124px)/2)) 58px; display:flex; align-items:center; background:#181120; }
+.heroCopy { position:relative; z-index:2; width:460px; max-width:100%; }
+.kicker { font:11px/1.7 monospace; letter-spacing:.1em; text-transform:uppercase; color:#efd1e4; margin:0 0 14px; }
+.hero h1 { font-size:clamp(58px,5.9vw,84px); font-weight:800; line-height:.98; letter-spacing:-.045em; margin:0; color:#fffafa; }
+.hero h1 em { color:#ffa99f; font-style:normal; }
+.heroDescription { font-size:15px; line-height:1.65; max-width:410px; color:#e0dbe8; margin:19px 0 0; }
+.heroVisual { position:absolute; inset:0; z-index:-2; overflow:hidden; }
+.heroVisual > img { object-fit:cover; object-position:center 30%; }
+.hero::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(9,8,18,.79),rgba(9,8,18,.48) 34%,rgba(9,8,18,.08) 68%),linear-gradient(0deg,rgba(9,8,18,.65),transparent 45%); pointer-events:none; }
+.sceneCaption { position:absolute; bottom:30px; right:max(28px,calc((100vw - 1124px)/2)); display:grid; gap:4px; text-align:right; font:9px/1.4 monospace; letter-spacing:.14em; color:#ffd1d2; }
+.countdownBlock { margin-top:26px; max-width:430px; }
+.countdownHeading { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.countdown { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.countdown > div { display:flex; align-items:center; flex-direction:column; gap:10px; padding:18px 8px 14px; border:1px solid rgba(255,169,159,.55); border-radius:8px; background:rgba(10,9,18,.88); }
+.countdown > div:first-child { background:rgba(74,30,40,.92); border-color:#ffa99f; }
+.countdown strong { font-size:48px; font-weight:800; letter-spacing:-.045em; line-height:1; font-variant-numeric:tabular-nums; color:#fff7f4; }
+.countdown > div:first-child strong { color:#ffb5aa; }
+.countdown span { font:11px/1.4 monospace; color:#f2c8c3; text-transform:uppercase; letter-spacing:.12em; }
+.clockNote { font:11px/1.8 monospace; color:#e3d9e3; margin:10px 0 0; }
+.heroActions { display:flex; gap:12px; margin-top:22px; flex-wrap:wrap; }
+.heroActions > a:first-child { width:auto; min-height:50px; padding:14px 22px; gap:24px; font-size:12px; background:#ffa99f; }
+.secondaryButton { display:inline-flex; gap:10px; align-items:center; justify-content:center; min-height:50px; padding:12px 20px; border:1px solid rgba(255,255,255,.3); border-radius:5px; background:rgba(12,11,21,.65); color:#fff4fb; text-decoration:none; font-size:12px; font-weight:600; transition:background-color 150ms,border-color 150ms,scale 150ms cubic-bezier(.2,0,0,1); }
+.secondaryButton:hover { background:#292030; border-color:#efbacb; }
+.heroActions > a { transition:background-color 150ms,scale 150ms cubic-bezier(.2,0,0,1); }
+.heroActions > a:active, .secondaryButton:active { scale:.96; }
 .worldStrip { border-top:1px solid #30303b; border-bottom:1px solid #30303b; display:flex; justify-content:space-between; gap:20px; padding:20px 0; font:10px/1.5 monospace; letter-spacing:.18em; color:#a497ad; }
 .worldStrip strong { color:#edb3ce; font-weight:400; }
 .giveawaySection, .communitySection { margin-top:60px; }
@@ -73,33 +70,12 @@
 .finalCta p:not(:first-child) { color:#beafc9; font-size:13px; line-height:1.8; margin:12px 0 0; }
 .finalCta > div:last-child { display:grid; gap:12px; min-width:230px; }
 @media (max-width:1000px) {
-  .hero { gap:28px; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); }
-  .heroVisual { min-height:580px; }
-  .hero h1 { font-size:60px; }
-  .heroActions { gap:10px; }
-  .heroActions > a { padding:12px; }
   .giveawayCopy { padding:28px; }
   .homePackages { gap:7px; }
   .homePackages a { padding:12px 9px; }
   .giveawayCopy h3 { font-size:29px; }
 }
 @media (max-width:700px) {
-  .hero { display:flex; flex-direction:column; gap:26px; padding:8px 0 30px; }
-  .heroCopy { width:100%; padding:0; }
-  .hero h1 { font-size:clamp(46px,13vw,62px); }
-  .kicker { margin-bottom:20px; font-size:9px; }
-  .heroDescription { margin-top:20px; font-size:13px; max-width:none; }
-  .heroVisual { width:100%; min-height:0; aspect-ratio:4/3; order:1; }
-  .heroVisual > img { object-position:50% 40%; }
-  .releaseBadge { left:20px; bottom:20px; }
-  .releaseBadge strong { font-size:30px; }
-  .releaseBadge > span { font-size:8px; }
-  .releaseBadge em { font-size:20px; }
-  .artFooter { inset:14px 14px auto; font-size:7px; }
-  .countdownBlock { margin-top:24px; padding:20px 0; }
-  .countdown strong { font-size:34px; }
-  .countdown > div { padding-left:12px; }
-  .heroActions > a { flex:1; }
   .worldStrip { gap:10px; font-size:8px; letter-spacing:.07em; padding:16px 0; }
   .worldStrip span:last-child { display:none; }
   .giveawaySection, .communitySection { margin-top:38px; }
@@ -120,4 +96,36 @@
   .finalCta { flex-direction:column; align-items:stretch; padding:24px 20px; margin-top:38px; gap:24px; }
   .finalCta h2 { font-size:27px; }
   .finalCta > div:last-child { min-width:0; }
+}
+
+@media (max-width:1000px) {
+  .hero { min-height:680px; padding-top:112px; padding-bottom:54px; }
+  .hero h1 { font-size:68px; }
+  .heroVisual > img { object-position:60% 30%; }
+}
+@media (max-width:700px) {
+  .hero { min-height:760px; align-items:flex-start; padding:100px 22px 240px; }
+  .heroCopy { width:100%; }
+  .hero h1 { font-size:clamp(52px,12vw,72px); }
+  .kicker { font-size:10px; }
+  .heroDescription { font-size:14px; max-width:340px; }
+  .desktopBreak { display:none; }
+  .heroVisual > img { object-position:70% 30%; }
+  .hero::after { background:linear-gradient(180deg,rgba(9,8,18,.7),rgba(9,8,18,.55) 60%,rgba(9,8,18,.12)),linear-gradient(90deg,rgba(9,8,18,.45),transparent); }
+  .countdownBlock { max-width:390px; }
+  .countdown { gap:8px; }
+  .countdown > div { padding:16px 6px 12px; gap:8px; }
+  .countdown strong { font-size:clamp(32px,10vw,44px); }
+  .countdown span { font-size:10px; }
+  .heroActions { gap:10px; }
+  .heroActions > a:first-child, .heroActions > a { flex:initial; padding:12px 15px; }
+  .sceneCaption { bottom:24px; right:22px; }
+}
+@media (max-width:370px) {
+  .heroActions { flex-direction:column; align-items:stretch; }
+  .hero { min-height:830px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .heroActions > a, .secondaryButton { transition:none; }
+  .heroActions > a:active, .secondaryButton:active { scale:1; }
 }
