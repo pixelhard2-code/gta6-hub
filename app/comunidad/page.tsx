@@ -382,12 +382,12 @@ export default function ComunidadPage() {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <div className={styles.topline}><span>GTA6HUB / Comunidad</span><Link href="/sorteos">Ver sorteo ↗</Link></div>
+        <div className={styles.topline}><span>LeonidaCrew / Comunidad</span><Link href="/sorteos">Ver sorteo ↗</Link></div>
         <header className={styles.communityHeader}><div><p className={styles.eyebrow}>La crew de GTA VI</p><h1 className={styles.pageTitle}>Nos vemos en Vice City</h1><p className={styles.subtitle}>Teorías, clips y conversaciones mientras llega nuestra próxima gran partida.</p></div><span className={styles.communityMarker}>[ COMUNIDAD DE FANS ]</span></header>
         <div className={styles.mobilePromo}><div><strong>PS5 + GTA VI</strong><span>SORTEO · TICKETS DESDE $3 USD</span></div><Link href="/sorteos#tickets">Ver tickets ↗</Link></div>
         <div className={styles.communityGrid}>
           <section className={styles.feed} aria-label="Muro de la comunidad">
-            <article className={styles.pinned}><span className={styles.pinMark} aria-hidden="true">↗</span><div><p className={styles.eyebrow}>GTA6HUB / Destacado</p><h2>La próxima consola podría ser tuya</h2><p>Tenemos un sorteo de PS5 + GTA VI para la comunidad. Revisa los paquetes y sigue las novedades aquí. Y tú, ¿qué harías primero al llegar a Vice City?</p><Link href="/sorteos#tickets">Ver el sorteo y elegir tickets →</Link></div></article>
+            <article className={styles.pinned}><span className={styles.pinMark} aria-hidden="true">↗</span><div><p className={styles.eyebrow}>LeonidaCrew / Destacado</p><h2>La próxima consola podría ser tuya</h2><p>Tenemos un sorteo de PS5 + GTA VI para la comunidad. Revisa los paquetes y sigue las novedades aquí. Y tú, ¿qué harías primero al llegar a Vice City?</p><Link href="/sorteos#tickets">Ver el sorteo y elegir tickets →</Link></div></article>
             <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void handlePublish(); }}>
               <div className={styles.composerTop}><Avatar name={profile?.displayName || user?.displayName || "G6"} photo={profile?.photoURL || user?.photoURL} /><label htmlFor="new-post" className={styles.srOnly}>Escribe tu publicación</label><textarea id="new-post" rows={3} maxLength={5000} value={newPost} onChange={(event) => setNewPost(event.target.value)} disabled={!user || !hasProfile || isPublishing} placeholder={!user ? "Tu crew está aquí. Inicia sesión y entra en la conversación." : !hasProfile ? "Completa tu perfil y presenta a tu personaje." : "¿Una teoría? ¿Un clip? ¿Tu primera misión en GTA VI?"} /></div>
               <div className={styles.composerBottom}><span>{newPost.length > 0 ? `${newPost.length} / 5000` : "Comparte también enlaces de YouTube."}</span>{!user ? <button type="button" className={styles.smallButton} onClick={() => setAuthOpen(true)}>Iniciar sesión</button> : !hasProfile ? <Link className={styles.smallButton} href="/perfil">Crear perfil</Link> : <button className={styles.smallButton} disabled={isPublishing || !newPost.trim()}>{isPublishing ? "Publicando…" : "Publicar ↗"}</button>}</div>
@@ -550,7 +550,7 @@ export default function ComunidadPage() {
           </section>
           <aside className={styles.communityAside}><GiveawayCard /><div className={styles.asideNotes}><h3>Código de la crew</h3><p>Comparte teorías, respeta a los demás y avisa si tu publicación contiene spoilers.</p><Link href="/sorteos">Premio, paquetes y detalles del sorteo →</Link></div></aside>
         </div>
-        <footer className={styles.footer}><span>GTA6HUB · Una comunidad de fans. No afiliada a Rockstar Games.</span><Link href="/sorteos">PS5 + GTA VI / Ver sorteo ↗</Link></footer>
+        <footer className={styles.footer}><span>LeonidaCrew · Una comunidad de fans. No afiliada a Rockstar Games.</span><Link href="/sorteos">PS5 + GTA VI / Ver sorteo ↗</Link></footer>
       </div>
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
     </div>

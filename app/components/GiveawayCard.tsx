@@ -49,7 +49,7 @@ export function PrizeArtwork({ compact = false }: { compact?: boolean }) {
         height={750}
         loading="lazy"
       />
-      <span className={styles.artLabel}>GTA6HUB / SORTEO OFICIAL</span>
+      <span className={styles.artLabel}>LeonidaCrew / SORTEO OFICIAL</span>
       <div className={styles.artTitle}>
         <span>WELCOME TO</span>
         <strong>VICE CITY.</strong>

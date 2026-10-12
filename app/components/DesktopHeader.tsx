@@ -38,8 +38,8 @@ export default function DesktopHeader({ signedIn, displayName, photo, onSignIn }
   return <header className={`${styles.desktopHeader} ${pathname === "/" ? styles.homeHeader : ""} ${scrolled ? styles.scrolledHeader : ""}`}>
     <a className={styles.skipLink} href="#site-content">Saltar al contenido</a>
     <div className={styles.headerInner}>
-      <Link href="/" className={styles.brand} aria-label="GTA6HUB — Inicio">
-        <strong>GTA<span>6</span>HUB</strong>
+      <Link href="/" className={styles.brand} aria-label="LeonidaCrew — Inicio">
+        <strong>Leonida<span>Crew</span></strong>
         <span className={styles.brandCaption}>La comunidad de GTA VI</span>
       </Link>
       <nav className={styles.navigation} aria-label="Navegación principal">

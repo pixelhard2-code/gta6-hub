@@ -20,8 +20,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL("https://gta6hub.vercel.app"),
   title: {
-    default: "GTA6HUB | La Crew y Punto de Encuentro de GTA VI",
-    template: "%s | GTA6HUB",
+    default: "LeonidaCrew | La Crew y Punto de Encuentro de GTA VI",
+    template: "%s | LeonidaCrew",
   },
   description:
     "Comunidad hispanohablante de fans de Grand Theft Auto VI. Cuenta regresiva al lanzamiento, novedades y tráilers oficiales, muro social de la crew y sorteo de PS5 + GTA VI.",
@@ -38,9 +38,9 @@ export const metadata: Metadata = {
     "Comunidad GTA VI",
     "Tráiler GTA VI",
   ],
-  authors: [{ name: "GTA6HUB Crew" }],
-  creator: "GTA6HUB",
-  publisher: "GTA6HUB",
+  authors: [{ name: "LeonidaCrew" }],
+  creator: "LeonidaCrew",
+  publisher: "LeonidaCrew",
   formatDetection: {
     email: false,
     address: false,
@@ -50,11 +50,11 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
   },
   openGraph: {
-    title: "GTA6HUB — La espera de GTA VI también se juega",
+    title: "LeonidaCrew — La espera de GTA VI también se juega",
     description:
       "Únete a la crew de GTA VI: comparte teorías, sigue las novedades oficiales de Rockstar Games y participa por una PS5 + GTA VI.",
     url: "https://gta6hub.vercel.app",
-    siteName: "GTA6HUB",
+    siteName: "LeonidaCrew",
     images: [
       {
         url: "/gta6-cover.jpg",
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "GTA6HUB — La Crew de GTA VI",
+    title: "LeonidaCrew — La Crew de GTA VI",
     description:
       "Muro comunitario, novedades oficiales de Rockstar Games, cuenta regresiva y sorteo de PS5 para los fans de GTA VI.",
     images: ["/gta6-cover.jpg"],

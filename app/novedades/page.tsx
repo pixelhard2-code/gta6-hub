@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description:
     "Todos los detalles confirmados de Grand Theft Auto VI por Rockstar Games: tráiler oficial 1, análisis de Jason y Lucia, el mapa del estado de Leonida y capturas en 4K.",
   openGraph: {
-    title: "GTA6HUB | Novedades Oficiales de Grand Theft Auto VI",
+    title: "LeonidaCrew | Novedades Oficiales de Grand Theft Auto VI",
     description:
       "Tráiler oficial de Rockstar Games, protagonistas Lucia y Jason, locaciones de Vice City y especificaciones técnicas.",
     images: ["/gta6-cover.jpg"],
@@ -80,7 +80,7 @@ export default function NovedadesPage() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.topline}>
-          <span>GTA6HUB / Centro de Noticias Oficiales</span>
+          <span>LeonidaCrew / Centro de Noticias Oficiales</span>
           <Link href="/sorteos">Ver sorteo de PS5 ↗</Link>
         </div>
 
@@ -223,7 +223,7 @@ export default function NovedadesPage() {
               ¿Qué teoría tienes sobre el próximo tráiler?
             </h2>
             <p className="text-xs md:text-sm text-neutral-300 leading-relaxed">
-              La comunidad de GTA6HUB comparte teorías, análisis fotograma a fotograma y participa por la consola de su próxima partida.
+              La comunidad de LeonidaCrew comparte teorías, análisis fotograma a fotograma y participa por la consola de su próxima partida.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -243,7 +243,7 @@ export default function NovedadesPage() {
         </section>
 
         <footer className={styles.footer}>
-          <span>GTA6HUB · Información recopilada para fans. Grand Theft Auto es marca registrada de Rockstar Games / Take-Two Interactive.</span>
+          <span>LeonidaCrew · Información recopilada para fans. Grand Theft Auto es marca registrada de Rockstar Games / Take-Two Interactive.</span>
           <a
             href="https://www.rockstargames.com/VI"
             target="_blank"

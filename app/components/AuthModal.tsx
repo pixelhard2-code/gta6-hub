@@ -161,7 +161,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         )}
 
         <p className="text-[11px] text-center text-neutral-400 mt-6">
-          Al continuar, aceptas las normas de convivencia de la crew de GTA6HUB.
+          Al continuar, aceptas las normas de convivencia de la crew de LeonidaCrew.
         </p>
       </div>
     </div>

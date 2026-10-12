@@ -22,7 +22,7 @@ export default function SorteosPage() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.topline}>
-          <span>GTA6HUB / Sorteo Oficial de la Crew</span>
+          <span>LeonidaCrew / Sorteo Oficial de la Crew</span>
           <Link href="/comunidad">Ir a la comunidad ↗</Link>
         </div>
 
@@ -59,7 +59,7 @@ export default function SorteosPage() {
               La próxima PS5<br />podría ser <em>la tuya</em>
             </h1>
             <p className={styles.description}>
-              Vice City se vive mejor en la nueva generación. Participa en el sorteo de GTA6HUB por una PlayStation 5 + Grand Theft Auto VI y asegura tu primera partida desde el día de estreno.
+              Vice City se vive mejor en la nueva generación. Participa en el sorteo de LeonidaCrew por una PlayStation 5 + Grand Theft Auto VI y asegura tu primera partida desde el día de estreno.
             </p>
 
             <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -233,13 +233,13 @@ export default function SorteosPage() {
               ¿Dónde podré ver mis tickets comprados?
             </summary>
             <p className="mt-2 text-neutral-400 text-xs leading-relaxed">
-              En tu pestaña de Perfil personal de GTA6HUB. Todos tus tickets quedarán asociados a tu cuenta de usuario y número de comprobante único.
+              En tu pestaña de Perfil personal de LeonidaCrew. Todos tus tickets quedarán asociados a tu cuenta de usuario y número de comprobante único.
             </p>
           </details>
         </section>
 
         <footer className={styles.footer}>
-          <span>GTA6HUB · Comunidad de fans de GTA VI. No afiliada a Rockstar Games ni Sony Interactive Entertainment.</span>
+          <span>LeonidaCrew · Comunidad de fans de GTA VI. No afiliada a Rockstar Games ni Sony Interactive Entertainment.</span>
           <Link href="/comunidad">Ir a la comunidad ↗</Link>
         </footer>
       </div>

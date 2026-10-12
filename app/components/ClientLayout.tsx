@@ -36,7 +36,7 @@ export default function ClientLayout({
       {/* === HEADER MÓVIL === */}
       <header className={`${desktopStyles.mobileHeader} ${pathname === "/" ? desktopStyles.mobileHomeHeader : ""} ${scrolled ? desktopStyles.scrolledHeader : ""}`}>
         <Link href="/" className={desktopStyles.mobileBrand}>
-          GTA<span>6</span>HUB
+          Leonida<span>Crew</span>
         </Link>
         
         <div>

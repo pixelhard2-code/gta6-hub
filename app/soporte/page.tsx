@@ -73,7 +73,7 @@ export default function SoportePage() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.topline}>
-          <span>GTA6HUB / Centro de Ayuda</span>
+          <span>LeonidaCrew / Centro de Ayuda</span>
           <Link href="/comunidad">Ir al muro de la crew ↗</Link>
         </div>
 
@@ -93,7 +93,7 @@ export default function SoportePage() {
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
             <span className="text-sm font-semibold text-neutral-200">
-              Sistemas de GTA6HUB: <strong className="text-emerald-400 font-bold">100% Operativos</strong>
+              Sistemas de LeonidaCrew: <strong className="text-emerald-400 font-bold">100% Operativos</strong>
             </span>
           </div>
           <span className="text-xs text-neutral-400 font-mono">
@@ -179,7 +179,7 @@ export default function SoportePage() {
                   #{ticketId}
                 </div>
                 <p className="text-[11px] text-neutral-400 mb-4">
-                  Revisaremos tu mensaje a la brevedad. Gracias por ser parte de GTA6HUB.
+                  Revisaremos tu mensaje a la brevedad. Gracias por ser parte de LeonidaCrew.
                 </p>
                 <button
                   type="button"
@@ -273,7 +273,7 @@ export default function SoportePage() {
         </div>
 
         <footer className={styles.footer}>
-          <span>GTA6HUB · Centro de Ayuda para la comunidad de fans. No afiliado a Rockstar Games.</span>
+          <span>LeonidaCrew · Centro de Ayuda para la comunidad de fans. No afiliado a Rockstar Games.</span>
           <Link href="/">Volver al inicio ↗</Link>
         </footer>
       </div>

@@ -16,7 +16,7 @@ export default function Home() {
           <Image src={ARTWORK} alt="" fill sizes="100vw" loading="eager" fetchPriority="high" priority />
         </div>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>GTA6HUB / Comunidad oficial de fans</p>
+          <p className={styles.kicker}>LeonidaCrew / Comunidad oficial de fans</p>
           <h1 id="home-title">La espera<br />también<br /><em>se juega</em></h1>
           <p className={styles.heroDescription}>
             Noticias, teorías, filtraciones y una crew hispanohablante que vive Grand Theft Auto VI todos los días.
@@ -48,14 +48,14 @@ export default function Home() {
           <span>LEONIDA</span>
           <strong>GTA VI</strong>
           <span>LA CREW</span>
-          <span>GTA6HUB</span>
+          <span>LeonidaCrew</span>
         </div>
 
         {/* Sección de Sorteo */}
         <section className={styles.giveawaySection} aria-labelledby="home-giveaway-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={hub.eyebrow}>El sorteo de GTA6HUB</p>
+              <p className={hub.eyebrow}>El sorteo de LeonidaCrew</p>
               <h2 id="home-giveaway-title">Tu próxima partida<br />Tu próxima consola</h2>
             </div>
             <Link href="/sorteos" className={styles.textLink}>Ver detalles del sorteo ↗</Link>
@@ -123,7 +123,7 @@ export default function Home() {
         </section>
 
         <footer className={hub.footer}>
-          <span>GTA6HUB · Comunidad de fans. No afiliada a Rockstar Games ni Take-Two Interactive.</span>
+          <span>LeonidaCrew · Comunidad de fans. No afiliada a Rockstar Games ni Take-Two Interactive.</span>
           <a href="https://www.rockstargames.com/VI" target="_blank" rel="noopener noreferrer">
             Fecha y arte oficial: Rockstar Games ↗
           </a>
