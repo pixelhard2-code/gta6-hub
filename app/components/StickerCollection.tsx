@@ -48,7 +48,7 @@ export default function StickerCollection({ collection, user, preview = false }:
     {!preview && !data?.total && <p className={styles.note}>{user ? "Tus stickers aparecerán aquí cuando se confirme tu compra. Si pagaste con un enlace directo, comparte el comprobante desde Soporte para validar la entrega." : "La colección muestra las compras confirmadas de este jugador."}</p>}
     {user && Boolean(data?.orders.length) && <div className={styles.orders}><h3>Mis compras</h3>{data!.orders.map((order) => <div className={styles.order} key={order.id}>
       <div><strong>{order.quantity} stickers</strong><small>{new Date(order.createdAt).toLocaleDateString("es-CL")} · {order.id.slice(-8)}</small><small>{order.email}</small></div>
-      <div><span className={styles.status}>{status[order.status] || "Pago pendiente"}</span>{order.status === "approved" && <small>{order.delivery === "sent" ? "Correo enviado" : "Envío de correo pendiente"}</small>}{order.status === "approved" && order.delivery !== "sent" && <button disabled={busy} className={`${styles.button} ${styles.secondary}`} onClick={() => void retryEmail(order.id)}>Reintentar envío</button>}</div>
+      <div><span className={styles.status}>{status[order.status] || "Pago pendiente"}</span>{order.status === "approved" && <small>{order.delivery === "sent" ? "Correo enviado" : order.delivery === "manual-pending" ? "Envío manual por correo pendiente" : "Envío de correo pendiente"}</small>}{order.status === "approved" && ["pending", "sending"].includes(order.delivery) && <button disabled={busy} className={`${styles.button} ${styles.secondary}`} onClick={() => void retryEmail(order.id)}>Reintentar envío</button>}</div>
     </div>)}</div>}
   </section>;
 }

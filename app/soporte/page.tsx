@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { db } from "@/app/lib/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import styles from "@/app/components/Hub.module.css";
+import { getStickerPackage, STICKER_PACKAGES, validDeliveryEmail } from "@/app/lib/stickers/catalog";
 
 const FAQ_ITEMS = [
   {
@@ -35,10 +36,23 @@ export default function SoportePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [paymentOperation, setPaymentOperation] = useState("");
+  const [stickerPackage, setStickerPackage] = useState("basic");
+  const isStickerPayment = topic === "sticker-payment";
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("motivo") === "sticker-payment") setTopic("sticker-payment");
+    const pack = getStickerPackage(params.get("paquete"));
+    if (pack) setStickerPackage(pack.id);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (isSubmitting || !message.trim()) return;
+    if (isStickerPayment && (!user || !/^[1-9]\d*$/.test(paymentOperation.trim()) || !validDeliveryEmail(email.trim() || user.email))) {
+      setError(!user ? "Inicia sesión desde el botón superior para asociar la compra a tu perfil." : "Introduce el número de operación y un correo válido para recibir tus stickers.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError("");
@@ -57,13 +71,13 @@ export default function SoportePage() {
         userId: user?.uid || null,
         createdAt: Date.now(),
         status: "open",
+        ...(isStickerPayment ? { paymentOperationId: paymentOperation.trim(), stickerPackageId: stickerPackage, deliveryEmail: contactEmail, paymentVerification: "pending-merchant-review" } : {}),
       });
       setTicketId(generatedTicket);
       setMessage("");
+      setPaymentOperation("");
     } catch {
-      // Fallback amigable si Firestore está en modo restrictivo
-      setTicketId(generatedTicket);
-      setMessage("");
+      setError("No se pudo guardar tu solicitud. Conservamos los datos para que vuelvas a intentarlo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -93,11 +107,11 @@ export default function SoportePage() {
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
             <span className="text-sm font-semibold text-neutral-200">
-              Sistemas de LeonidaCrew: <strong className="text-emerald-400 font-bold">100% Operativos</strong>
+              Stickers con enlaces directos: <strong className="text-emerald-400 font-bold">Validación manual</strong>
             </span>
           </div>
           <span className="text-xs text-neutral-400 font-mono">
-            Firestore & Auth sincronizados · Tiempo resp. prom: &lt; 24h
+            El envío por correo se realiza después de revisar la compra.
           </span>
         </div>
 
@@ -202,6 +216,7 @@ export default function SoportePage() {
                     className="w-full bg-[#1b1c26] border border-neutral-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-pink-500"
                   >
                     <option value="tickets">Consulta sobre Stickers o Sorteo</option>
+                    <option value="sticker-payment">Registrar compra de stickers</option>
                     <option value="bug">Reportar un error o Bug en la web</option>
                     <option value="account">Problema con mi Cuenta o Perfil</option>
                     <option value="moderation">Reportar contenido o usuario</option>
@@ -226,17 +241,25 @@ export default function SoportePage() {
 
                 <div>
                   <label htmlFor="support-email" className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                    Correo electrónico de respuesta
+                    {isStickerPayment ? "Correo para recibir tus stickers *" : "Correo electrónico de respuesta"}
                   </label>
                   <input
                     id="support-email"
                     type="email"
+                    required={isStickerPayment && !user?.email}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={user?.email || "tu-correo@ejemplo.com"}
                     className="w-full bg-[#1b1c26] border border-neutral-700 rounded-lg p-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-pink-500"
                   />
                 </div>
+
+                {isStickerPayment && <fieldset className="flex flex-col gap-3 border border-pink-500/20 rounded-lg p-3">
+                  <legend className="text-xs font-semibold text-pink-200 px-1">Datos de la compra</legend>
+                  <label className="text-xs text-neutral-300" htmlFor="support-payment-operation">Número de operación de Mercado Pago *<input id="support-payment-operation" required inputMode="numeric" pattern="[1-9][0-9]*" maxLength={30} value={paymentOperation} onChange={(event) => setPaymentOperation(event.target.value)} className="w-full mt-1 bg-[#1b1c26] border border-neutral-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-pink-500" /></label>
+                  <label className="text-xs text-neutral-300" htmlFor="support-sticker-pack">Pack que compraste<select id="support-sticker-pack" value={stickerPackage} onChange={(event) => setStickerPackage(event.target.value)} className="w-full mt-1 bg-[#1b1c26] border border-neutral-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-pink-500">{STICKER_PACKAGES.map(pack => <option key={pack.id} value={pack.id}>{pack.name} · {pack.stickers} {pack.stickers === 1 ? "sticker" : "stickers"}</option>)}</select></label>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">Revisaremos la operación en nuestra cuenta de Mercado Pago. Registrar la solicitud todavía no acredita stickers. {user ? "Tu cuenta quedará asociada a esta solicitud." : "Inicia sesión para vincularla a tu perfil."}</p>
+                </fieldset>}
 
                 <div>
                   <label htmlFor="support-message" className="block text-xs font-semibold text-neutral-300 mb-1.5">
@@ -265,7 +288,7 @@ export default function SoportePage() {
                   disabled={isSubmitting || !message.trim()}
                   className="w-full py-3 px-4 rounded-xl bg-[#f3b5a7] hover:bg-[#f8cbc2] text-[#241820] font-bold text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                 >
-                  {isSubmitting ? "Enviando ticket..." : "Enviar mensaje a soporte →"}
+                  {isSubmitting ? "Enviando solicitud..." : "Enviar mensaje a soporte →"}
                 </button>
               </form>
             )}

@@ -12,6 +12,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.STICKER_TEST_BUILD) thr
 const { createStickerOrder, prepareStickerCheckout, applyVerifiedPayment, deliverStickerOrder, verifyMercadoPagoSignature } = require(join(process.env.STICKER_TEST_BUILD, "commerce.js"));
 const { STICKER_PACKAGES, validDeliveryEmail } = require(join(process.env.STICKER_TEST_BUILD, "catalog.js"));
 const { stickerZip } = require(join(process.env.STICKER_TEST_BUILD, "files.js"));
+const { creditDashboardReviewedPurchase, markManualStickerEmailSent } = require(join(process.env.STICKER_TEST_BUILD, "manual.js"));
 const { sendStickerEmailWithConfig } = require(join(process.env.STICKER_TEST_BUILD, "email-transport.js"));
 const app = initializeApp({ projectId: "demo-gta6hub-follow" }, `stickers-${randomUUID()}`);
 const db = getFirestore(app);
@@ -28,6 +29,32 @@ const collection = async (uid) => (await db.collection("sticker_collections").do
 test("the three supplied payment links match the 1, 2 and 5 sticker packs", () => {
   assert.deepEqual(STICKER_PACKAGES.map(p=>[p.stickers,p.price,p.paymentUrl]), [[1,3,"https://mpago.la/2SARTNX"],[2,5,"https://mpago.la/1J28NAx"],[5,10,"https://mpago.la/22A25HZ"]]);
   for (const pack of STICKER_PACKAGES) assert.equal(pack.stickerIds.length, pack.stickers);
+});
+test("merchant-reviewed purchases grant once and never call an email provider", async () => {
+  const input={paymentId:String(++sequence),uid:`buyer-${randomUUID()}`,packageId:"double",email:"buyer@example.invalid",amount:5000,currency:"CLP",reviewer:"test-merchant",confirmedInDashboard:true};
+  await assert.rejects(creditDashboardReviewedPurchase(db,{...input,confirmedInDashboard:false}),/manual-review-required/);
+  const results=await Promise.all([creditDashboardReviewedPurchase(db,input),creditDashboardReviewedPurchase(db,input)]);
+  const id=results[0].orderId;
+  assert.equal(results.filter(item=>!item.repeated).length,1);
+  assert.equal((await collection(input.uid)).total,2);
+  assert.equal((await db.collection("sticker_leaderboard").doc(input.uid).get()).data().total,2);
+  let sends=0;
+  assert.equal(await deliverStickerOrder(db,id,async()=>{sends++;return "must-not-send";}),false);
+  assert.equal(sends,0);
+  assert.equal(await markManualStickerEmailSent(db,id),true);
+  assert.equal(await markManualStickerEmailSent(db,id),false);
+  assert.equal((await db.collection("sticker_deliveries").doc(id).get()).data().status,"sent");
+  await assert.rejects(creditDashboardReviewedPurchase(db,{...input,uid:`buyer-${randomUUID()}`}),/payment-already-assigned/);
+});
+test("later API reconciliation cannot duplicate a manually credited operation", async () => {
+  const input={paymentId:String(++sequence),uid:`buyer-${randomUUID()}`,packageId:"basic",email:"buyer@example.invalid",amount:3000,currency:"CLP",reviewer:"test-merchant",confirmedInDashboard:true};
+  const item=await creditDashboardReviewedPurchase(db,input);
+  const payment={id:input.paymentId,external_reference:item.orderId,status:"approved",transaction_amount:3000,transaction_amount_refunded:0,currency_id:"CLP",collector_id:"12345",live_mode:false};
+  await applyVerifiedPayment(db,payment,merchant);
+  assert.equal((await collection(input.uid)).total,1);
+  await applyVerifiedPayment(db,{...payment,status:"refunded",transaction_amount_refunded:3000},merchant);
+  await assert.rejects(creditDashboardReviewedPurchase(db,input),/refunded-payment/);
+  assert.equal((await collection(input.uid)).total,0);
 });
 test("webhook authentication binds payment ID, request ID and timestamp", () => {
   const signature = createHmac("sha256", "test-secret").update("id:123;request-id:request-1;ts:1700000000;").digest("hex");

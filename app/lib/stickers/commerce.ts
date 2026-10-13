@@ -149,7 +149,7 @@ export async function deliverStickerOrder(database: Firestore, orderId: string, 
   const job = await database.runTransaction(async (transaction) => {
     const [snapshot, orderSnapshot] = await Promise.all([transaction.get(jobRef), transaction.get(database.collection("sticker_orders").doc(orderId))]);
     const data = snapshot.data();
-    if (!data || orderSnapshot.data()?.status !== "approved" || ["sent", "cancelled"].includes(data.status) || Number(data.leaseUntil || 0) > Date.now()) return null;
+    if (!data || data.method === "manual" || orderSnapshot.data()?.status !== "approved" || ["sent", "cancelled"].includes(data.status) || Number(data.leaseUntil || 0) > Date.now()) return null;
     transaction.update(jobRef, { status: "sending", leaseId, leaseUntil: Date.now() + 60000, attempts: Number(data.attempts || 0) + 1 });
     return { orderId, email: String(data.email), packageId: String(data.packageId), quantity: Number(data.quantity) };
   });

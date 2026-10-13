@@ -4,6 +4,8 @@ El código ya incluye los tres packs, cinco diseños originales en PNG transpare
 
 ## Dos formas de pago
 
+Para los primeros días sin API, usa el [procedimiento manual](./sticker-manual.md): envío desde tu correo y acreditación privada con Firebase, sin token de Mercado Pago ni Resend.
+
 Los enlaces indicados están conectados al botón del pack correspondiente:
 
 | Pack | Referencia | Enlace directo |
