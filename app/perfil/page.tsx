@@ -14,10 +14,11 @@ import ProfileAvatarPicker from "@/app/components/ProfileAvatarPicker";
 import UserListModal from "@/app/components/UserListModal";
 import StickerCollection from "@/app/components/StickerCollection";
 import { useStickerCollection } from "@/app/lib/stickers/useCollection";
+import { STICKER_SOCIAL_VISIBLE } from "@/app/lib/stickers/visibility";
 
 export default function PerfilPage() {
   const { user, profile: profileData, loading, error: profileError } = useCurrentUserProfile();
-  const stickerCollection = useStickerCollection(user);
+  const stickerCollection = useStickerCollection(user, undefined, STICKER_SOCIAL_VISIBLE);
   const [recommended, setRecommended] = useState<UserProfile[]>([]);
   
   // Modales
@@ -267,15 +268,15 @@ export default function PerfilPage() {
                 <span className="text-white font-semibold group-hover:text-pink-300 transition-colors">{profileData?.following?.length || 0}</span>
                 <span className="text-neutral-400 group-hover:underline">Siguiendo</span>
               </button>
-              <div className="flex flex-col gap-0.5 ml-4 border-l border-neutral-800 pl-8">
+              {STICKER_SOCIAL_VISIBLE && <div className="flex flex-col gap-0.5 ml-4 border-l border-neutral-800 pl-8">
                 <span className="text-pink-400 font-bold">{stickerCollection.loading ? "…" : stickerCollection.error ? "—" : stickerCollection.data.total}</span>
                 <span className="text-neutral-400">Stickers</span>
-              </div>
+              </div>}
             </div>
           </div>
         </div>
 
-        <StickerCollection collection={stickerCollection} user={user} />
+        {STICKER_SOCIAL_VISIBLE && <StickerCollection collection={stickerCollection} user={user} />}
 
         {/* Estadísticas */}
         <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 shadow-lg">

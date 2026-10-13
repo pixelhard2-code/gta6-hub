@@ -2,6 +2,8 @@
 
 Los tres enlaces actuales sirven para abrir el pago. La entrega se puede hacer desde tu correo habitual, sin Resend ni la API de Mercado Pago. El correo que Mercado Pago envíe como comprobante no entrega por sí solo los archivos de LeonidaCrew.
 
+La colección de los perfiles, el contador de stickers y el ranking comunitario están ocultos temporalmente con `STICKER_SOCIAL_VISIBLE = false` en `app/lib/stickers/visibility.ts`. Las compras se siguen registrando y acumulando. Configurar Firebase Admin no muestra esas secciones: cuando se decida publicarlas, cambia el indicador a `true` y despliega la web. Mientras estén ocultas, la entrega al comprador se realiza por correo.
+
 ## Flujo del comprador
 
 1. Inicia sesión en LeonidaCrew para identificar su perfil.
@@ -16,7 +18,7 @@ Los tres enlaces actuales sirven para abrir el pago. La entrega se puede hacer d
 3. Asocia la operación al perfil del comprador correcto. No adivines un UID por el nombre visible ni uses un correo de otra persona sin comprobar quién compró.
 4. Acredita la compra con la herramienta privada descrita abajo, si Firebase Admin está configurado.
 5. Desde tu correo habitual, envía el ZIP del pack al correo indicado. Incluye número de operación, cantidad de stickers y la equivalencia con participaciones. Conserva el mensaje enviado.
-6. Marca el envío únicamente después de enviarlo. El comprador verá la colección y podrá descargarla cuando la compra esté registrada y Firebase Admin esté configurado en la web.
+6. Marca el envío únicamente después de enviarlo. Cuando se habilite la visibilidad de la colección y Firebase Admin esté configurado en la web, el comprador podrá ver y descargar sus compras registradas desde el perfil.
 
 | Pack | Referencia | Archivo para adjuntar |
 | --- | --- | --- |

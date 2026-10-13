@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PrizeArtwork, STICKER_PACKAGES } from "@/app/components/GiveawayCard";
 import StickerCheckout from "@/app/components/StickerCheckout";
 import StickerCollection from "@/app/components/StickerCollection";
+import { STICKER_SOCIAL_VISIBLE } from "@/app/lib/stickers/visibility";
 import styles from "@/app/components/Hub.module.css";
 
 export default function SorteosPage() {
@@ -209,10 +210,10 @@ export default function SorteosPage() {
           </details>
           <details className="py-2">
             <summary className="font-semibold text-neutral-200 hover:text-pink-300 transition-colors">
-              ¿Cómo recibiré mis stickers y veré mi colección?
+              {STICKER_SOCIAL_VISIBLE ? "¿Cómo recibiré mis stickers y veré mi colección?" : "¿Cómo recibiré mis stickers?"}
             </summary>
             <p className="mt-2 text-neutral-400 text-xs leading-relaxed">
-              Tus compras confirmadas aparecerán en «Mis stickers» dentro de tu perfil, con los diseños y la cantidad de copias que tienes. Cada copia equivale a una participación. El checkout con entrega automática enviará un ZIP con los PNG al correo indicado; con un enlace directo de pago debes compartir el comprobante desde Soporte para validar la entrega.
+              {STICKER_SOCIAL_VISIBLE ? "Tus compras confirmadas aparecerán en «Mis stickers» dentro de tu perfil, con los diseños y la cantidad de copias que tienes. Cada copia equivale a una participación. El checkout con entrega automática enviará un ZIP con los PNG al correo indicado; con un enlace directo de pago debes compartir el comprobante desde Soporte para validar la entrega." : "Después de pagar, pulsa «Ya pagué: registrar mi compra» e indica el número de operación, el pack y tu correo. Revisaremos el pago y enviaremos el ZIP de tus stickers al correo indicado. Cada sticker de una compra confirmada equivale a una participación en el sorteo promocional."}
             </p>
           </details>
         </section>

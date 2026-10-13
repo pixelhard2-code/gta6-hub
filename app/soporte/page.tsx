@@ -7,11 +7,12 @@ import { collection, addDoc } from "firebase/firestore";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import styles from "@/app/components/Hub.module.css";
 import { getStickerPackage, STICKER_PACKAGES, validDeliveryEmail } from "@/app/lib/stickers/catalog";
+import { STICKER_SOCIAL_VISIBLE } from "@/app/lib/stickers/visibility";
 
 const FAQ_ITEMS = [
   {
-    question: "¿Dónde veo mis stickers y participaciones?",
-    answer: "En Mi perfil encontrarás Mis stickers, los diseños y el número de copias adquiridas. Cada sticker de una compra confirmada equivale a una participación. Si pagas con un enlace directo de Mercado Pago, envía aquí el número de operación, el pack y el correo de entrega para validar tu compra. La entrega automática por API enviará los PNG por correo y actualizará tu colección tras aprobarse el pago.",
+    question: STICKER_SOCIAL_VISIBLE ? "¿Dónde veo mis stickers y participaciones?" : "¿Cómo recibo los stickers que compré?",
+    answer: STICKER_SOCIAL_VISIBLE ? "En Mi perfil encontrarás Mis stickers, los diseños y el número de copias adquiridas. Cada sticker de una compra confirmada equivale a una participación. Si pagas con un enlace directo de Mercado Pago, envía aquí el número de operación, el pack y el correo de entrega para validar tu compra. La entrega automática por API enviará los PNG por correo y actualizará tu colección tras aprobarse el pago." : "Selecciona «Registrar compra de stickers» e indica el número de operación de Mercado Pago, el pack y el correo de entrega. Después de verificar el pago, enviaremos el ZIP de tus stickers por correo. Cada sticker de una compra confirmada equivale a una participación en el sorteo promocional.",
   },
   {
     question: "¿Cuándo se realizará el sorteo y cómo se elegirá al ganador?",

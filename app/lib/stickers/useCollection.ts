@@ -6,7 +6,7 @@ export interface StickerPurchase { id: string; quantity: number; packageId: stri
 export interface StickerCollectionData { configured: boolean; total: number; counts: Record<string, number>; orders: StickerPurchase[] }
 const EMPTY: StickerCollectionData = { configured: false, total: 0, counts: {}, orders: [] };
 
-export function useStickerCollection(user: User | null, publicUid?: string) {
+export function useStickerCollection(user: User | null, publicUid?: string, enabled = true) {
   const [data, setData] = useState<StickerCollectionData>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -18,7 +18,7 @@ export function useStickerCollection(user: User | null, publicUid?: string) {
     const controller = new AbortController();
     setData(EMPTY);
     setError("");
-    if (!user && !publicUid) { setLoading(false); return; }
+    if (!enabled || (!user && !publicUid)) { setLoading(false); return; }
     setLoading(true);
     const load = async () => {
       if (busy || !active) return;
@@ -38,6 +38,6 @@ export function useStickerCollection(user: User | null, publicUid?: string) {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
     return () => { active = false; controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onFocus); };
-  }, [user, publicUid, revision]);
+  }, [user, publicUid, revision, enabled]);
   return { data, loading, error, refresh };
 }
