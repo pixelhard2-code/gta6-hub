@@ -78,6 +78,17 @@ test("unapproved payments do not create a collection or email job", async () => 
   assert.equal(await collection(item.uid),undefined);
   assert.equal((await db.collection("sticker_deliveries").doc(item.id).get()).exists,false);
 });
+test("a rejected payment can be retried with a new operation on the same checkout", async () => {
+  const item=await order("double");
+  await applyVerifiedPayment(db,{...item.payment,status:"rejected"},merchant);
+  assert.equal((await db.collection("sticker_orders").doc(item.id).get()).data().paymentId,undefined);
+  assert.equal(await prepareStickerCheckout(db,item.id,async()=>({preferenceId:"retry",checkoutUrl:"https://www.mercadopago.cl/retry"})),"https://www.mercadopago.cl/retry");
+  const approved={...item.payment,id:String(++sequence)};
+  await applyVerifiedPayment(db,approved,merchant);
+  await applyVerifiedPayment(db,{...item.payment,status:"rejected"},merchant);
+  assert.equal((await collection(item.uid)).total,2);
+  assert.equal((await db.collection("sticker_orders").doc(item.id).get()).data().status,"approved");
+});
 test("amount, currency, seller, environment and reference mismatches cannot credit stickers", async () => {
   const item=await order("basic");
   for(const change of [{transaction_amount:1},{currency_id:"USD"},{collector_id:"another"},{live_mode:true},{external_reference:"lc_"+"f".repeat(32)}]) await assert.rejects(applyVerifiedPayment(db,{...item.payment,...change},merchant));
@@ -96,6 +107,7 @@ test("refund and chargeback notifications remove entries once and cancel a queue
   await applyVerifiedPayment(db,item.payment,merchant);
   await applyVerifiedPayment(db,{...item.payment,status:"refunded",transaction_amount_refunded:5000},merchant);
   await applyVerifiedPayment(db,{...item.payment,status:"refunded",transaction_amount_refunded:5000},merchant);
+  await applyVerifiedPayment(db,item.payment,merchant); // An older approved snapshot cannot restore a refunded pack.
   assert.equal((await collection(item.uid)).total,0);
   assert.equal((await db.collection("sticker_leaderboard").doc(item.uid).get()).data().total,0);
   assert.equal((await db.collection("sticker_deliveries").doc(item.id).get()).data().status,"cancelled");

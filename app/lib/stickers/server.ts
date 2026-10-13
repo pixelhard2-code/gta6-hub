@@ -1,8 +1,13 @@
 import "server-only";
-import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 import { STICKER_PACKAGES } from "./catalog";
+
+// Keep Admin SDK loading synchronous for Node.js/serverless entry points.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { cert, getApps, initializeApp } = require("firebase-admin/app") as typeof import("firebase-admin/app");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { getAuth } = require("firebase-admin/auth") as typeof import("firebase-admin/auth");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
 
 export function adminConfigured() {
   return Boolean(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT || (process.env.FIREBASE_ADMIN_PROJECT_ID && process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY));

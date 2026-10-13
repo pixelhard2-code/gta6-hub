@@ -60,7 +60,7 @@ export async function prepareStickerCheckout(database: Firestore, orderId: strin
   const saved = await database.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const data = snapshot.data();
-    if (!data || data.status !== "pending") throw new Error("conflicting-order");
+    if (!data || !["pending", "in_process", "rejected", "cancelled", "canceled"].includes(data.status)) throw new Error("conflicting-order");
     if (data.checkoutUrl) return { order: data as StickerOrder, cached: String(data.checkoutUrl) };
     if (Number(data.checkoutLeaseUntil || 0) > Date.now()) throw new Error("checkout-busy");
     transaction.update(ref, { checkoutLeaseId: leaseId, checkoutLeaseUntil: Date.now() + 60000 });
@@ -108,15 +108,16 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
     const previous = paymentSnap.data();
     if (previous && previous.orderId !== orderId) throw new Error("payment-already-assigned");
     const counts = stickerCounts(inventorySnap.data()?.counts);
-    const reversed = ["refunded", "charged_back"].includes(payment.status) || Number(payment.transaction_amount_refunded || 0) > 0;
+    const reversed = previous?.status === "refunded" || ["refunded", "charged_back"].includes(payment.status) || Number(payment.transaction_amount_refunded || 0) > 0;
     const approved = payment.status === "approved" && !reversed;
     const wasCredited = previous?.credited === true;
     const now = Date.now();
 
     // A second payment for the same checkout needs a merchant review, not a silent extra credit.
     if (order.paymentId && order.paymentId !== String(payment.id)) {
-      transaction.set(paymentRef, { orderId, uid: order.uid, status: "needs_review", credited: false, updatedAt: now });
-      return { status: "needs_review", orderId };
+      const status = approved || reversed ? "needs_review" : payment.status;
+      transaction.set(paymentRef, { orderId, uid: order.uid, status, credited: false, updatedAt: now });
+      return { status, orderId };
     }
     if (approved && !wasCredited) {
       for (const id of pack.stickerIds) counts[id] += 1;
@@ -126,7 +127,7 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
     const credited = approved || (wasCredited && !reversed);
     const status = reversed ? "refunded" : credited ? "approved" : payment.status;
     transaction.set(paymentRef, { orderId, uid: order.uid, status, credited, updatedAt: now });
-    transaction.update(orderRef, { status, paymentId: String(payment.id), updatedAt: now });
+    transaction.update(orderRef, { status, ...(credited || reversed ? { paymentId: String(payment.id) } : {}), updatedAt: now });
     if (credited !== wasCredited) {
       const total = totalStickers(counts);
       transaction.set(inventoryRef, { uid: order.uid, counts, total, updatedAt: now });
