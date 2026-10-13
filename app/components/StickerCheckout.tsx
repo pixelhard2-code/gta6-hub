@@ -51,7 +51,7 @@ export default function StickerCheckout({ packageId }: { packageId: string }) {
     {automatic ? <button className={hub.primaryButton} onClick={() => void checkout()} disabled={busy}><span>{busy ? "Preparando pago…" : `Comprar ${pack.stickers} ${pack.stickers === 1 ? "sticker" : "stickers"}`}</span><span aria-hidden="true">↗</span></button> : <a href={pack.paymentUrl} target="_blank" rel="noopener noreferrer" className={hub.primaryButton}><span>Confirmar selección ({pack.stickers} {pack.stickers === 1 ? "sticker" : "stickers"})</span><span aria-hidden="true">↗</span></a>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <p className={hub.panelNote}>{automatic ? STICKER_SOCIAL_VISIBLE ? "Paga en Mercado Pago. Tras confirmar tu pago, los stickers se acreditarán en tu perfil y se enviarán al correo indicado." : "Paga en Mercado Pago. Tras confirmar tu pago, los stickers se enviarán al correo indicado." : STICKER_SOCIAL_VISIBLE ? "Este enlace abre el pago en Mercado Pago. La entrega y la acreditación en el perfil requieren validar el comprobante mientras se activa la entrega automática." : "Este enlace abre el pago en Mercado Pago. Después de pagar, registra tu compra para validar la operación y recibir tus stickers por correo."}</p>
-    {!automatic && <Link className={styles.direct} href={`/soporte?motivo=sticker-payment&paquete=${pack.id}`}>Ya pagué: registrar mi compra →</Link>}
+    {!automatic && <Link className={styles.direct} href={`/gracias?paquete=${pack.id}`}>Ya pagué: solicitar mis stickers →</Link>}
     {authOpen && createPortal(<AuthModal isOpen onClose={() => setAuthOpen(false)} />, document.body)}
   </div>;
 }

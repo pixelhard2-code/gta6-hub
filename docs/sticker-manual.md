@@ -6,17 +6,19 @@ La colección de los perfiles, el contador de stickers y el ranking comunitario 
 
 ## Flujo del comprador
 
-1. Inicia sesión en LeonidaCrew para identificar su perfil.
-2. Elige un pack y paga con su enlace de Mercado Pago.
-3. Vuelve a Sorteos y pulsa «Ya pagué: registrar mi compra». Soporte preselecciona el pack.
-4. Indica el número de operación, el correo de entrega y los detalles de la compra. La solicitud conserva el UID de su cuenta. Esta solicitud no acredita stickers ni confirma un pago por sí sola.
+1. Elige un pack y paga con su enlace de Mercado Pago.
+2. Abre la página de agradecimiento desde el retorno del pago o «Ya pagué: solicitar mis stickers» en Sorteos.
+3. Indica nombre, correo de entrega, teléfono, pack y número de operación. No necesita iniciar sesión.
+4. Envía el formulario. Cuando el correo receptor esté configurado y activado, la solicitud llega al comercio por correo. Esta solicitud no acredita stickers ni confirma un pago por sí sola.
+
+Consulta [sticker-request-form.md](./sticker-request-form.md) para activar la recepción por correo y configurar las tres URLs de retorno. Las solicitudes anteriores guardadas en `support_tickets` permanecen en Firebase.
 
 ## Qué hace el comercio
 
-1. Revisa `support_tickets` en la consola de Firestore. Los campos de una solicitud de compra son `paymentOperationId`, `stickerPackageId`, `deliveryEmail`, `userId`, nombre y mensaje.
+1. Revisa los correos con asunto `LeonidaCrew · Compra por revisar`. Incluyen los datos de entrega y el número de operación. Las solicitudes anteriores se pueden seguir revisando en `support_tickets` en Firestore.
 2. Abre la operación en tu propia cuenta de Mercado Pago y comprueba el pago aprobado, el comprador, el importe bruto y la moneda del pack. Comprueba que el número no esté ya registrado. Una captura del comprador por sí sola no es confirmación.
-3. Asocia la operación al perfil del comprador correcto. No adivines un UID por el nombre visible ni uses un correo de otra persona sin comprobar quién compró.
-4. Acredita la compra con la herramienta privada descrita abajo, si Firebase Admin está configurado.
+3. Verifica a quién pertenece la compra y el correo de entrega. Si vas a asociarla a una cuenta de LeonidaCrew, identifica al usuario correcto: el formulario no exige una cuenta ni entrega un UID autenticado. No adivines un UID por el nombre visible.
+4. Si el comprador tiene cuenta y Firebase Admin está configurado, puedes acreditar la compra con la herramienta privada descrita abajo. Si no, registra la operación y entrega el ZIP por correo sin modificar perfiles.
 5. Desde tu correo habitual, envía el ZIP del pack al correo indicado. Incluye número de operación, cantidad de stickers y la equivalencia con participaciones. Conserva el mensaje enviado.
 6. Marca el envío únicamente después de enviarlo. Cuando se habilite la visibilidad de la colección y Firebase Admin esté configurado en la web, el comprador podrá ver y descargar sus compras registradas desde el perfil.
 

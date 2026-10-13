@@ -5,6 +5,10 @@ FIREBASE_ADMIN_CLIENT_EMAIL=
 FIREBASE_ADMIN_PRIVATE_KEY=
 # Alternatively use FIREBASE_ADMIN_SERVICE_ACCOUNT with the complete JSON.
 
+# Manual delivery-request inbox (FormSubmit; verify the activation email first).
+# No Firebase Admin, Mercado Pago API or Resend is needed for this receiver.
+STICKER_REQUEST_RECIPIENT=
+
 MERCADOPAGO_ACCESS_TOKEN=
 MERCADOPAGO_WEBHOOK_SECRET=
 MERCADOPAGO_COLLECTOR_ID=

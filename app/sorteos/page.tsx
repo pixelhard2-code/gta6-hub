@@ -213,7 +213,7 @@ export default function SorteosPage() {
               {STICKER_SOCIAL_VISIBLE ? "¿Cómo recibiré mis stickers y veré mi colección?" : "¿Cómo recibiré mis stickers?"}
             </summary>
             <p className="mt-2 text-neutral-400 text-xs leading-relaxed">
-              {STICKER_SOCIAL_VISIBLE ? "Tus compras confirmadas aparecerán en «Mis stickers» dentro de tu perfil, con los diseños y la cantidad de copias que tienes. Cada copia equivale a una participación. El checkout con entrega automática enviará un ZIP con los PNG al correo indicado; con un enlace directo de pago debes compartir el comprobante desde Soporte para validar la entrega." : "Después de pagar, pulsa «Ya pagué: registrar mi compra» e indica el número de operación, el pack y tu correo. Revisaremos el pago y enviaremos el ZIP de tus stickers al correo indicado. Cada sticker de una compra confirmada equivale a una participación en el sorteo promocional."}
+              {STICKER_SOCIAL_VISIBLE ? "Tus compras confirmadas aparecerán en «Mis stickers» dentro de tu perfil, con los diseños y la cantidad de copias que tienes. Cada copia equivale a una participación. El checkout con entrega automática enviará un ZIP con los PNG al correo indicado; con un enlace directo de pago debes completar el formulario de entrega para validar la compra." : "Después de pagar, completa el formulario de entrega con tu nombre, correo, teléfono, pack y número de operación. También puedes abrirlo desde «Ya pagué: solicitar mis stickers». Revisaremos el pago y enviaremos el ZIP al correo indicado. Cada sticker de una compra confirmada equivale a una participación en el sorteo promocional."}
             </p>
           </details>
         </section>
