@@ -12,9 +12,12 @@ import { ProfileActionError, saveUserProfile } from "@/app/lib/profile-actions";
 import { PROFILE_AVATARS } from "@/app/lib/avatars";
 import ProfileAvatarPicker from "@/app/components/ProfileAvatarPicker";
 import UserListModal from "@/app/components/UserListModal";
+import StickerCollection from "@/app/components/StickerCollection";
+import { useStickerCollection } from "@/app/lib/stickers/useCollection";
 
 export default function PerfilPage() {
   const { user, profile: profileData, loading, error: profileError } = useCurrentUserProfile();
+  const stickerCollection = useStickerCollection(user);
   const [recommended, setRecommended] = useState<UserProfile[]>([]);
   
   // Modales
@@ -265,12 +268,14 @@ export default function PerfilPage() {
                 <span className="text-neutral-400 group-hover:underline">Siguiendo</span>
               </button>
               <div className="flex flex-col gap-0.5 ml-4 border-l border-neutral-800 pl-8">
-                <span className="text-pink-400 font-bold">{profileData?.tickets || 0}</span>
-                <span className="text-neutral-400">Tickets Sorteo PS5</span>
+                <span className="text-pink-400 font-bold">{stickerCollection.loading ? "…" : stickerCollection.error ? "—" : stickerCollection.data.total}</span>
+                <span className="text-neutral-400">Stickers</span>
               </div>
             </div>
           </div>
         </div>
+
+        <StickerCollection collection={stickerCollection} user={user} />
 
         {/* Estadísticas */}
         <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 shadow-lg">

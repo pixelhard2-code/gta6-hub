@@ -9,8 +9,8 @@ import styles from "@/app/components/Hub.module.css";
 
 const FAQ_ITEMS = [
   {
-    question: "¿Cómo sé cuántos tickets tengo para el sorteo de la PS5?",
-    answer: "Cuando se habilite la venta, cada sticker digital comprado incluirá 1 ticket para el sorteo promocional. Los stickers se enviarán al correo indicado al comprar y podrás consultar los tickets asociados a tu compra desde tu Perfil.",
+    question: "¿Dónde veo mis stickers y participaciones?",
+    answer: "En Mi perfil encontrarás Mis stickers, los diseños y el número de copias adquiridas. Cada sticker de una compra confirmada equivale a una participación. Si pagas con un enlace directo de Mercado Pago, envía aquí el número de operación, el pack y el correo de entrega para validar tu compra. La entrega automática por API enviará los PNG por correo y actualizará tu colección tras aprobarse el pago.",
   },
   {
     question: "¿Cuándo se realizará el sorteo y cómo se elegirá al ganador?",

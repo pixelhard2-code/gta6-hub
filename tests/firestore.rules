@@ -2,6 +2,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /sticker_collections/{doc} { allow read, write: if false; }
+    match /sticker_leaderboard/{doc} { allow read, write: if false; }
+    match /sticker_orders/{doc} { allow read, write: if false; }
+    match /sticker_payments/{doc} { allow read, write: if false; }
+    match /sticker_deliveries/{doc} { allow read, write: if false; }
     match /users/{uid} {
       allow read, create: if true;
       allow update, delete: if !('rejectUpdates' in resource.data) || resource.data.rejectUpdates != true;

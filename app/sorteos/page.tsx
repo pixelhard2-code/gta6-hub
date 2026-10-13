@@ -2,21 +2,22 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PrizeArtwork, TICKET_PACKAGES } from "@/app/components/GiveawayCard";
+import { PrizeArtwork, STICKER_PACKAGES } from "@/app/components/GiveawayCard";
+import StickerCheckout from "@/app/components/StickerCheckout";
+import StickerCollection from "@/app/components/StickerCollection";
 import styles from "@/app/components/Hub.module.css";
 
 export default function SorteosPage() {
   const [selectedId, setSelectedId] = useState("legend");
-  const [showNotice, setShowNotice] = useState(false);
 
   useEffect(() => {
     const packageId = new URLSearchParams(window.location.search).get("paquete");
-    if (TICKET_PACKAGES.some((item) => item.id === packageId)) {
+    if (STICKER_PACKAGES.some((item) => item.id === packageId)) {
       setSelectedId(packageId!);
     }
   }, []);
 
-  const selected = TICKET_PACKAGES.find((item) => item.id === selectedId) ?? TICKET_PACKAGES[2];
+  const selected = STICKER_PACKAGES.find((item) => item.id === selectedId) ?? STICKER_PACKAGES[2];
 
   return (
     <div className={styles.page}>
@@ -90,7 +91,7 @@ export default function SorteosPage() {
 
             <fieldset className={styles.packageList}>
               <legend className={styles.packageLegend}>Selecciona tu pack de stickers digitales:</legend>
-              {TICKET_PACKAGES.map((item) => {
+              {STICKER_PACKAGES.map((item) => {
                 const isSelected = selectedId === item.id;
                 return (
                   <label
@@ -109,14 +110,13 @@ export default function SorteosPage() {
                         checked={isSelected}
                         onChange={() => {
                           setSelectedId(item.id);
-                          setShowNotice(false);
                         }}
                         className="accent-pink-400 w-4 h-4 flex-none"
                       />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <strong className="text-sm font-bold text-white">
-                            {item.tickets} {item.tickets === 1 ? "Sticker" : "Stickers"}
+                            {item.stickers} {item.stickers === 1 ? "Sticker" : "Stickers"}
                           </strong>
                           {item.badge && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30 font-mono">
@@ -142,38 +142,15 @@ export default function SorteosPage() {
 
             <div className={styles.orderTotal} aria-live="polite">
               <span className="text-neutral-300 font-medium">
-                Resumen: {selected.tickets} {selected.tickets === 1 ? "sticker seleccionado" : "stickers seleccionados"}
+                Resumen: {selected.stickers} {selected.stickers === 1 ? "sticker seleccionado" : "stickers seleccionados"}
               </span>
               <strong className="text-2xl text-white font-extrabold">
                 ${selected.price} <small className="text-xs text-neutral-400 font-mono">USD</small>
               </strong>
             </div>
 
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => setShowNotice(true)}
-            >
-              <span>Confirmar selección ({selected.tickets} {selected.tickets === 1 ? "sticker" : "stickers"})</span>
-              <span aria-hidden="true">→</span>
-            </button>
-
-            {showNotice ? (
-              <div role="status" className="mt-4 p-4 rounded-xl bg-pink-950/30 border border-pink-500/40 text-xs text-pink-100 leading-relaxed animate-in fade-in">
-                <div className="flex items-center gap-2 font-bold text-pink-300 mb-1">
-                  <span>✓</span>
-                  <span>Paquete de stickers seleccionado</span>
-                </div>
-                <p>
-                  Has seleccionado <strong>{selected.tickets} {selected.tickets === 1 ? "sticker digital" : "stickers digitales"}</strong> por <strong>${selected.price} USD</strong>.
-                  Cada sticker incluirá 1 ticket para el sorteo y se enviará a tu correo tras confirmar el pago. La venta estará disponible próximamente; esta selección todavía no realiza una compra ni asigna tickets.
-                </p>
-              </div>
-            ) : (
-              <p className={styles.panelNote}>
-                ⚡ Venta de stickers digitales y entrega por correo próximamente. Elegir un paquete todavía no realiza una compra ni asigna tickets.
-              </p>
-            )}
+            <StickerCheckout packageId={selected.id} />
+            <p className={styles.panelNote}>Precios de referencia en USD. Revisa el importe y la moneda del pago antes de confirmarlo en Mercado Pago.</p>
 
             <div className={styles.deadlineNote}>
               <strong>Garantía de transparencia</strong>
@@ -181,6 +158,8 @@ export default function SorteosPage() {
             </div>
           </section>
         </div>
+
+        <div className="mt-8"><StickerCollection preview /></div>
 
         {/* Flujo de 3 pasos */}
         <section className={styles.infoRow} aria-label="Cómo participar en el sorteo">
@@ -195,7 +174,7 @@ export default function SorteosPage() {
             <span className="text-pink-400 font-mono font-bold text-xs">Paso 02</span>
             <h3 className="text-sm font-bold text-white mt-2 mb-1">Recíbelos por correo</h3>
             <p className="text-xs text-neutral-400 leading-relaxed">
-              Al habilitarse la venta y confirmarse el pago, tus stickers se enviarán al correo indicado al comprar. Los tickets incluidos se asociarán a tu perfil.
+              Paga el pack en Mercado Pago y conserva tu comprobante. Tus stickers y participaciones se acreditan al confirmar el pago; la entrega por correo depende de la validación de la compra.
             </p>
           </div>
           <div className="p-4 rounded-xl bg-[#141520] border border-neutral-800/80">
@@ -230,10 +209,10 @@ export default function SorteosPage() {
           </details>
           <details className="py-2">
             <summary className="font-semibold text-neutral-200 hover:text-pink-300 transition-colors">
-              ¿Cómo recibiré mis stickers y veré mis tickets?
+              ¿Cómo recibiré mis stickers y veré mi colección?
             </summary>
             <p className="mt-2 text-neutral-400 text-xs leading-relaxed">
-              Tras confirmar el pago, los stickers digitales se enviarán al correo indicado al comprar. Los tickets promocionales aparecerán en tu perfil de LeonidaCrew: 1 por cada sticker comprado. Los plazos de entrega y las condiciones de participación se informarán antes de abrir la venta.
+              Tus compras confirmadas aparecerán en «Mis stickers» dentro de tu perfil, con los diseños y la cantidad de copias que tienes. Cada copia equivale a una participación. El checkout con entrega automática enviará un ZIP con los PNG al correo indicado; con un enlace directo de pago debes compartir el comprobante desde Soporte para validar la entrega.
             </p>
           </details>
         </section>

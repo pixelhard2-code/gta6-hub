@@ -1,0 +1,23 @@
+# Copy into Vercel environment variables. Never put credentials in NEXT_PUBLIC_*.
+# Firebase project must be the same project used by the website's existing login.
+FIREBASE_ADMIN_PROJECT_ID=
+FIREBASE_ADMIN_CLIENT_EMAIL=
+FIREBASE_ADMIN_PRIVATE_KEY=
+# Alternatively use FIREBASE_ADMIN_SERVICE_ACCOUNT with the complete JSON.
+
+MERCADOPAGO_ACCESS_TOKEN=
+MERCADOPAGO_WEBHOOK_SECRET=
+MERCADOPAGO_COLLECTOR_ID=
+MERCADOPAGO_MODE=production
+MERCADOPAGO_CURRENCY=CLP
+# Use the actual amounts charged by your account. No USD-to-CLP rate is assumed.
+MERCADOPAGO_PACK_BASIC_AMOUNT=
+MERCADOPAGO_PACK_DOUBLE_AMOUNT=
+MERCADOPAGO_PACK_LEGEND_AMOUNT=
+
+RESEND_API_KEY=
+STICKER_EMAIL_FROM=
+APP_URL=https://gta6-hub-coral.vercel.app
+# Set true only after configuring the rules, sender, payment notification and prices.
+STICKER_SALES_ENABLED=false
+CRON_SECRET=

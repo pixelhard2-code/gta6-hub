@@ -9,10 +9,13 @@ import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import { readUserProfile, type UserProfile } from "@/app/lib/profiles";
 import { ProfileActionError, setFollowState } from "@/app/lib/profile-actions";
 import AuthModal from "@/app/components/AuthModal";
+import StickerCollection from "@/app/components/StickerCollection";
+import { useStickerCollection } from "@/app/lib/stickers/useCollection";
 import UserListModal from "@/app/components/UserListModal";
 
 export default function PerfilPublico() {
   const { id: profileId } = useParams<{ id: string }>();
+  const stickerCollection = useStickerCollection(null, profileId);
   const { user: currentUser, profile: currentUserProfile, loading: loadingSession, error: sessionError } = useCurrentUserProfile();
   const [publicProfile, setPublicProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,6 +188,8 @@ export default function PerfilPublico() {
           </div>
         </div>
       </div>
+
+      <StickerCollection collection={stickerCollection} />
 
       {/* Publicaciones del Usuario en la Comunidad */}
       <div className="bg-[#121319] border border-neutral-800 rounded-2xl p-6 shadow-lg flex flex-col gap-4 w-full">

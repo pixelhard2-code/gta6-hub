@@ -44,3 +44,7 @@ npx firebase-tools@14.17.0 emulators:exec --only firestore --project demo-gta6hu
 ```
 
 The rules in `tests/firestore.rules` are fixtures for these tests only. They must not be deployed to a live project.
+
+## Sticker shop
+
+See [the activation guide](docs/sticker-commerce.md) for Mercado Pago, Firebase Admin, transactional emails, direct-link reconciliation and security rules. The direct links work independently; automatic delivery requires the documented server configuration.

@@ -7,13 +7,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:profiles": "node scripts/test-profiles.mjs"
+    "test:profiles": "node scripts/test-profiles.mjs",
+    "test:stickers": "node scripts/test-stickers.mjs"
   },
+  "engines": { "node": ">=22" },
   "dependencies": {
+    "fflate": "^0.8.3",
     "firebase": "^11.0.0",
+    "firebase-admin": "^14.5.0",
     "next": "^16.4.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0-alpha.31",

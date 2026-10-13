@@ -8,6 +8,7 @@ import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import { collection, addDoc, query, orderBy, limit, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot, getCountFromServer, increment } from "firebase/firestore";
 import AuthModal from "@/app/components/AuthModal";
 import GiveawayCard from "@/app/components/GiveawayCard";
+import StickerRanking from "@/app/components/StickerRanking";
 import styles from "@/app/components/Hub.module.css";
 
 interface Reply {
@@ -385,6 +386,7 @@ export default function ComunidadPage() {
         <div className={styles.topline}><span>LeonidaCrew / Comunidad</span><Link href="/sorteos">Ver sorteo ↗</Link></div>
         <header className={styles.communityHeader}><div><p className={styles.eyebrow}>La crew de GTA VI</p><h1 className={styles.pageTitle}>Nos vemos en Vice City</h1><p className={styles.subtitle}>Teorías, clips y conversaciones mientras llega nuestra próxima gran partida.</p></div><span className={styles.communityMarker}>[ COMUNIDAD DE FANS ]</span></header>
         <div className={styles.mobilePromo}><div><strong>PS5 + GTA VI</strong><span>STICKERS DESDE $3 USD · CON SORTEO</span></div><Link href="/sorteos#tickets">Ver stickers ↗</Link></div>
+        <div className="mb-6"><StickerRanking /></div>
         <div className={styles.communityGrid}>
           <section className={styles.feed} aria-label="Muro de la comunidad">
             <article className={styles.pinned}><span className={styles.pinMark} aria-hidden="true">↗</span><div><p className={styles.eyebrow}>LeonidaCrew / Destacado</p><h2>La próxima consola podría ser tuya</h2><p>Compra stickers digitales, recíbelos por correo y obtén 1 ticket por sticker para el sorteo promocional de PS5 + GTA VI. Revisa los packs y sigue las novedades aquí.</p><Link href="/sorteos#tickets">Ver el sorteo y elegir stickers →</Link></div></article>

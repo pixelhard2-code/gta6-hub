@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import ReleaseCountdown from "@/app/components/ReleaseCountdown";
 import HomeCommunity from "@/app/components/HomeCommunity";
-import { PrizeArtwork, TICKET_PACKAGES } from "@/app/components/GiveawayCard";
+import { PrizeArtwork, STICKER_PACKAGES } from "@/app/components/GiveawayCard";
 import hub from "@/app/components/Hub.module.css";
 import styles from "@/app/components/Home.module.css";
 
@@ -72,9 +72,9 @@ export default function Home() {
                 Compra stickers digitales de LeonidaCrew y recíbelos por correo. Cada sticker incluye 1 ticket para participar en el sorteo promocional de una PlayStation 5 + GTA VI.
               </p>
               <div className={styles.homePackages}>
-                {TICKET_PACKAGES.map((item) => (
+                {STICKER_PACKAGES.map((item) => (
                   <Link key={item.id} href={`/sorteos?paquete=${item.id}#tickets`}>
-                    <span>{item.tickets} {item.tickets === 1 ? "sticker" : "stickers"}</span>
+                    <span>{item.stickers} {item.stickers === 1 ? "sticker" : "stickers"}</span>
                     <strong>${item.price} <small>USD</small></strong>
                     <span>{item.highlight ? "Mejor valor ↗" : "Elegir ↗"}</span>
                   </Link>
@@ -85,7 +85,7 @@ export default function Home() {
                 <span aria-hidden="true">→</span>
               </Link>
               <p className={styles.giveawayNote}>
-                ⚡ 1 sticker = 1 ticket. Venta y entrega por correo próximamente.
+                ⚡ 1 sticker confirmado = 1 participación. Pago con Mercado Pago.
               </p>
             </div>
           </div>

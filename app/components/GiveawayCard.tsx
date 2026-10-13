@@ -1,42 +1,7 @@
 import Link from "next/link";
 import styles from "./Hub.module.css";
 
-export interface TicketPackage {
-  id: string;
-  name: string;
-  tickets: number;
-  price: number;
-  unitPrice: string;
-  badge?: string;
-  highlight?: boolean;
-}
-
-export const TICKET_PACKAGES: TicketPackage[] = [
-  {
-    id: "basic",
-    name: "Pack Básico",
-    tickets: 1,
-    price: 3,
-    unitPrice: "$3.00 c/u",
-  },
-  {
-    id: "double",
-    name: "Pack Doble",
-    tickets: 2,
-    price: 5,
-    unitPrice: "$2.50 c/u",
-    badge: "Popular · Ahorras $1",
-  },
-  {
-    id: "legend",
-    name: "Pack Leyenda Vice City",
-    tickets: 5,
-    price: 10,
-    unitPrice: "$2.00 c/u",
-    badge: "Mejor Valor · 33% Ahorro",
-    highlight: true,
-  },
-];
+export { STICKER_PACKAGES } from "@/app/lib/stickers/catalog";
 
 export function PrizeArtwork({ compact = false }: { compact?: boolean }) {
   return (
