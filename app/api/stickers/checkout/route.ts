@@ -2,19 +2,23 @@ import { stickerCollection } from "@/app/lib/stickers/namespace";
 import { authenticatedBuyer, commerceConfig, mercadoPago, stickerAdmin, appUrl, apiError } from "@/app/lib/stickers/server";
 import { getStickerPackage, STICKER_PACKAGES, validDeliveryEmail } from "@/app/lib/stickers/catalog";
 import { createStickerOrder, prepareStickerCheckout } from "@/app/lib/stickers/commerce";
-import { allowedTestBuyer } from "@/app/lib/stickers/checkout-policy";
+import { allowedTestBuyer, testBuyerAccess } from "@/app/lib/stickers/checkout-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const config = commerceConfig();
-  let allowed = config.ready;
-  if (allowed && !config.liveMode) {
-    try { allowed = allowedTestBuyer(await authenticatedBuyer(request), config.testEmail); }
-    catch { allowed = false; }
+  let access = config.ready ? "ready" : "setup-required";
+  if (config.ready && !config.liveMode) {
+    if (!request.headers.has("authorization")) access = "sign-in-required";
+    else {
+      try { access = testBuyerAccess(await authenticatedBuyer(request), config.testEmail); }
+      catch { access = "session-invalid"; }
+    }
   }
-  return Response.json({ automatic: allowed, testMode: allowed && !config.liveMode, quotes: allowed ? STICKER_PACKAGES.map((pack) => ({ id: pack.id, amount: config.amounts[pack.id], currency: config.currency })) : [] }, { headers: { "Cache-Control": "no-store" } });
+  const allowed = access === "ready";
+  return Response.json({ automatic: allowed, testMode: allowed && !config.liveMode, access, quotes: allowed ? STICKER_PACKAGES.map((pack) => ({ id: pack.id, amount: config.amounts[pack.id], currency: config.currency })) : [] }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {

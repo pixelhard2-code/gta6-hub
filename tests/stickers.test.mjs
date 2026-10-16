@@ -14,7 +14,7 @@ const { STICKER_PACKAGES, validDeliveryEmail } = require(join(process.env.STICKE
 const { stickerZip } = require(join(process.env.STICKER_TEST_BUILD, "files.js"));
 const { creditDashboardReviewedPurchase, markManualStickerEmailSent } = require(join(process.env.STICKER_TEST_BUILD, "manual.js"));
 const { sendStickerEmailWithConfig } = require(join(process.env.STICKER_TEST_BUILD, "email-transport.js"));
-const { checkoutPolicy, allowedTestBuyer } = require(join(process.env.STICKER_TEST_BUILD, "checkout-policy.js"));
+const { checkoutPolicy, allowedTestBuyer, testBuyerAccess } = require(join(process.env.STICKER_TEST_BUILD, "checkout-policy.js"));
 const { stickerCollection } = require(join(process.env.STICKER_TEST_BUILD, "namespace.js"));
 const { readBuyerStickerOrder } = require(join(process.env.STICKER_TEST_BUILD, "commerce.js"));
 const app = initializeApp({ projectId: "demo-gta6hub-follow" }, `stickers-${randomUUID()}`);
@@ -53,6 +53,10 @@ test("receipt data is private to its buyer and never trusts the return URL for a
   assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).delivery, "sent");
 });
 test("verified identity, not a public profile field, authorizes the private trial", () => {
+  assert.equal(testBuyerAccess({ email: "BUYER@example.com", email_verified: true }, "buyer@example.com"), "ready");
+  assert.equal(testBuyerAccess({ email: "buyer@example.com", email_verified: false }, "buyer@example.com"), "email-unverified");
+  assert.equal(testBuyerAccess({ email: "another@example.com", email_verified: true }, "buyer@example.com"), "account-not-allowed");
+  assert.equal(testBuyerAccess({ email_verified: true }, "buyer@example.com"), "account-not-allowed");
   assert.equal(allowedTestBuyer({ email: "BUYER@example.com", email_verified: true }, "buyer@example.com"), true);
   assert.equal(allowedTestBuyer({ email: "buyer@example.com", email_verified: false }, "buyer@example.com"), false);
   assert.equal(allowedTestBuyer({ email: "another@example.com", email_verified: true }, "buyer@example.com"), false);

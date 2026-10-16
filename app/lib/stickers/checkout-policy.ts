@@ -9,6 +9,11 @@ export function checkoutPolicy(env: Record<string, string | undefined> = process
   return { liveMode, enabled, testEmail };
 }
 
+export function testBuyerAccess(buyer: { email?: string; email_verified?: boolean }, email: string) {
+  if (!email || buyer.email?.trim().toLowerCase() !== email) return "account-not-allowed";
+  return buyer.email_verified === true ? "ready" : "email-unverified";
+}
+
 export function allowedTestBuyer(buyer: { email?: string; email_verified?: boolean }, email: string) {
-  return Boolean(email && buyer.email_verified === true && buyer.email?.trim().toLowerCase() === email);
+  return testBuyerAccess(buyer, email) === "ready";
 }
