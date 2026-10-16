@@ -1,7 +1,7 @@
 import "server-only";
 import { STICKER_PACKAGES } from "./catalog";
 import { checkoutPolicy } from "./checkout-policy";
-import { buyerAuthFailure, FIREBASE_SETUP_ERRORS } from "./auth-errors";
+import { buyerAuthFailure, firebaseSdkFailure, FIREBASE_SETUP_ERRORS } from "./auth-errors";
 
 export function adminConfigured() {
   return Boolean(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT || (process.env.FIREBASE_ADMIN_PROJECT_ID && process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY));
@@ -19,14 +19,17 @@ export function stickerAdmin() {
 function initializeStickerAdmin() {
   // Load the private SDK only when credentials are available and needed.
   let appSdk: typeof import("firebase-admin/app"), authSdk: typeof import("firebase-admin/auth"), firestoreSdk: typeof import("firebase-admin/firestore");
+  let loadingModule: "app" | "auth" | "firestore" = "app";
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     appSdk = require("firebase-admin/app");
+    loadingModule = "auth";
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     authSdk = require("firebase-admin/auth");
+    loadingModule = "firestore";
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     firestoreSdk = require("firebase-admin/firestore");
-  } catch { throw new Error("firebase-admin-sdk"); }
+  } catch (error) { throw firebaseSdkFailure(error, loadingModule); }
   const { cert, getApps, initializeApp } = appSdk;
   const { getAuth } = authSdk;
   const { getFirestore } = firestoreSdk;

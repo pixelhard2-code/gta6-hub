@@ -3,7 +3,7 @@ import { authenticatedBuyer, commerceConfig, mercadoPago, stickerAdmin, appUrl, 
 import { getStickerPackage, STICKER_PACKAGES, validDeliveryEmail } from "@/app/lib/stickers/catalog";
 import { createStickerOrder, prepareStickerCheckout } from "@/app/lib/stickers/commerce";
 import { testBuyerAccess } from "@/app/lib/stickers/checkout-policy";
-import { checkoutAuthAccess } from "@/app/lib/stickers/auth-errors";
+import { checkoutAuthAccess, firebaseSdkDiagnostic } from "@/app/lib/stickers/auth-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,16 +11,17 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const config = commerceConfig();
   let access = config.ready ? "ready" : "setup-required";
+  let diagnostic: unknown;
   if (config.ready) {
     try {
       // Validate server initialization too: a broken Admin configuration is not a bad login.
       stickerAdmin();
       if (!config.liveMode) access = request.headers.has("authorization")
         ? testBuyerAccess(await authenticatedBuyer(request)) : "sign-in-required";
-    } catch (error) { access = checkoutAuthAccess(error); }
+    } catch (error) { access = checkoutAuthAccess(error); if (!config.liveMode) diagnostic = firebaseSdkDiagnostic(error); }
   }
   const allowed = access === "ready";
-  return Response.json({ automatic: allowed, testMode: allowed && !config.liveMode, access, quotes: allowed ? STICKER_PACKAGES.map((pack) => ({ id: pack.id, amount: config.amounts[pack.id], currency: config.currency })) : [] }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ automatic: allowed, testMode: allowed && !config.liveMode, access, ...(diagnostic ? { diagnostic } : {}), quotes: allowed ? STICKER_PACKAGES.map((pack) => ({ id: pack.id, amount: config.amounts[pack.id], currency: config.currency })) : [] }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {

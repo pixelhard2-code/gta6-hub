@@ -68,6 +68,15 @@ test("token revocation remains enforced and provider faults never expose private
   }
 });
 
+test("SDK diagnostics report only the dependency category and omit raw errors and paths", () => {
+  const missing = errors.firebaseSdkFailure({ code: "MODULE_NOT_FOUND", message: "Cannot find module '@example/dependency'\nPRIVATE-DETAIL" }, "auth");
+  assert.equal(JSON.stringify(errors.firebaseSdkDiagnostic(missing)), JSON.stringify({ module: "auth", code: "MODULE_NOT_FOUND", dependency: "@example/dependency" }));
+  const privatePath = errors.firebaseSdkFailure({ code: "MODULE_NOT_FOUND", message: "Cannot find module '/private/value'" }, "app");
+  assert.equal(JSON.stringify(errors.firebaseSdkDiagnostic(privatePath)).includes("private"), false);
+  const unknown = errors.firebaseSdkFailure({ code: "PRIVATE-DETAIL", message: "PRIVATE-DETAIL" }, "firestore");
+  assert.equal(JSON.stringify(errors.firebaseSdkDiagnostic(unknown)).includes("PRIVATE"), false);
+});
+
 test("checkout status separates server setup from invalid sessions and blocks anonymous trial access", async () => {
   let failure, buyer = { uid: "buyer", email_verified: true };
   const route = load("app/api/stickers/checkout/route.ts", {
