@@ -9,11 +9,13 @@ import AuthModal from "./AuthModal";
 import hub from "./Hub.module.css";
 import styles from "./StickerCollection.module.css";
 
-export default function StickerCheckout({ packageId }: { packageId: string }) {
+export default function StickerCheckout({ packageId, testOnly = false }: { packageId: string; testOnly?: boolean }) {
   const pack = getStickerPackage(packageId)!;
   const { user } = useCurrentUserProfile();
   const [email, setEmail] = useState("");
   const [automatic, setAutomatic] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(true);
   const [quote, setQuote] = useState<{ amount: number; currency: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -24,14 +26,21 @@ export default function StickerCheckout({ packageId }: { packageId: string }) {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    attemptId.current = ""; setError("");
-    fetch("/api/stickers/checkout", { signal: controller.signal, cache: "no-store" }).then(async (response) => {
+    attemptId.current = ""; setError(""); setLoadingStatus(true); setAutomatic(false);
+    (async () => {
+      const token = user ? await user.getIdToken() : null;
+      const response = await fetch("/api/stickers/checkout", { signal: controller.signal, cache: "no-store", headers: token ? { Authorization: "Bearer " + token } : {} });
       if (!response.ok) throw new Error("checkout-status");
       const result = await response.json();
-      if (active) { setAutomatic(Boolean(result.automatic)); setQuote(result.quotes.find((item: { id: string }) => item.id === packageId) || null); }
-    }).catch(() => { if (active) setAutomatic(false); });
+      if (active) {
+        const available = Boolean(result.automatic) && (!testOnly || result.testMode === true);
+        setAutomatic(available); setTestMode(Boolean(result.testMode));
+        setQuote(result.quotes.find((item: { id: string }) => item.id === packageId) || null);
+        if (testOnly && user && !available) setError("La prueba privada aún no está habilitada para esta cuenta.");
+      }
+    })().catch(() => { if (active) { setAutomatic(false); if (testOnly) setError("No pudimos verificar el acceso a la prueba."); } }).finally(() => { if (active) setLoadingStatus(false); });
     return () => { active = false; controller.abort(); };
-  }, [packageId]);
+  }, [packageId, user, testOnly]);
   async function checkout() {
     if (pending.current) return;
     if (!user) { setAuthOpen(true); return; }
@@ -39,7 +48,7 @@ export default function StickerCheckout({ packageId }: { packageId: string }) {
     pending.current = true; setBusy(true); setError("");
     if (!attemptId.current) attemptId.current = crypto.randomUUID();
     try {
-      const response = await fetch("/api/stickers/checkout", { method: "POST", headers: { Authorization: `Bearer ${await user.getIdToken()}`, "Content-Type": "application/json" }, body: JSON.stringify({ packageId, email, attemptId: attemptId.current }) });
+      const response = await fetch("/api/stickers/checkout", { method: "POST", headers: { Authorization: `Bearer ${await user.getIdToken()}`, "Content-Type": "application/json" }, body: JSON.stringify({ packageId, email, attemptId: attemptId.current, expectedMode: testOnly ? "test" : undefined }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "No pudimos abrir el pago. Inténtalo nuevamente.");
       window.location.assign(result.url);
@@ -47,11 +56,12 @@ export default function StickerCheckout({ packageId }: { packageId: string }) {
     finally { pending.current = false; setBusy(false); }
   }
   return <div>
-    {automatic && <label className={styles.checkoutEmail} htmlFor="sticker-delivery-email">Correo para recibir los stickers<input id="sticker-delivery-email" type="email" autoComplete="email" value={email} maxLength={254} disabled={busy} onChange={(event) => { setEmail(event.target.value); attemptId.current = ""; }} />{quote && <span>Total a pagar: {new Intl.NumberFormat("es-CL", { style: "currency", currency: quote.currency }).format(quote.amount)} {quote.currency}</span>}</label>}
-    {automatic ? <button className={hub.primaryButton} onClick={() => void checkout()} disabled={busy}><span>{busy ? "Preparando pago…" : `Comprar ${pack.stickers} ${pack.stickers === 1 ? "sticker" : "stickers"}`}</span><span aria-hidden="true">↗</span></button> : <a href={pack.paymentUrl} target="_blank" rel="noopener noreferrer" className={hub.primaryButton}><span>Confirmar selección ({pack.stickers} {pack.stickers === 1 ? "sticker" : "stickers"})</span><span aria-hidden="true">↗</span></a>}
+    {(testOnly || testMode) && <p className={hub.panelNote}><strong>Prueba privada.</strong> Usa la cuenta compradora y las tarjetas de prueba de Mercado Pago. Los stickers simulados no participan en el sorteo real.</p>}
+    {automatic && <label className={styles.checkoutEmail} htmlFor="sticker-delivery-email">Correo para recibir los stickers<input id="sticker-delivery-email" type="email" autoComplete="email" value={email} maxLength={254} disabled={busy} onChange={(event) => { setEmail(event.target.value); attemptId.current = ""; }} />{quote && <span>{testMode ? "Total simulado" : "Total a pagar"}: {new Intl.NumberFormat("es-CL", { style: "currency", currency: quote.currency }).format(quote.amount)} {quote.currency}</span>}</label>}
+    {automatic ? <button className={hub.primaryButton} onClick={() => void checkout()} disabled={busy}><span>{busy ? "Preparando pago…" : testMode ? "Probar Mercado Pago" : `Comprar ${pack.stickers} ${pack.stickers === 1 ? "sticker" : "stickers"}`}</span><span aria-hidden="true">↗</span></button> : testOnly ? <button className={hub.primaryButton} type="button" disabled={Boolean(user) || loadingStatus} onClick={() => setAuthOpen(true)}>{loadingStatus ? "Verificando prueba…" : user ? "Prueba no habilitada" : "Iniciar sesión para probar"}</button> : <a href={pack.paymentUrl} target="_blank" rel="noopener noreferrer" className={hub.primaryButton}><span>Confirmar selección ({pack.stickers} {pack.stickers === 1 ? "sticker" : "stickers"})</span><span aria-hidden="true">↗</span></a>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
-    <p className={hub.panelNote}>{automatic ? STICKER_SOCIAL_VISIBLE ? "Paga en Mercado Pago. Tras confirmar tu pago, los stickers se acreditarán en tu perfil y se enviarán al correo indicado." : "Paga en Mercado Pago. Tras confirmar tu pago, los stickers se enviarán al correo indicado." : STICKER_SOCIAL_VISIBLE ? "Este enlace abre el pago en Mercado Pago. La entrega y la acreditación en el perfil requieren validar el comprobante mientras se activa la entrega automática." : "Este enlace abre el pago en Mercado Pago. Después de pagar, registra tu compra para validar la operación y recibir tus stickers por correo."}</p>
-    {!automatic && <Link className={styles.direct} href={`/gracias?paquete=${pack.id}`}>Ya pagué: solicitar mis stickers →</Link>}
+    {(!testOnly || automatic) && <p className={hub.panelNote}>{automatic ? STICKER_SOCIAL_VISIBLE ? "Paga en Mercado Pago. Tras confirmar tu pago, los stickers se acreditarán en tu perfil y se enviarán al correo indicado." : "Paga en Mercado Pago. Tras confirmar tu pago, los stickers se enviarán al correo indicado." : STICKER_SOCIAL_VISIBLE ? "Este enlace abre el pago en Mercado Pago. La entrega y la acreditación en el perfil requieren validar el comprobante mientras se activa la entrega automática." : "Este enlace abre el pago en Mercado Pago. Después de pagar, registra tu compra para validar la operación y recibir tus stickers por correo."}</p>}
+    {!automatic && !testOnly && <Link className={styles.direct} href={`/gracias?paquete=${pack.id}`}>Ya pagué: solicitar mis stickers →</Link>}
     {authOpen && createPortal(<AuthModal isOpen onClose={() => setAuthOpen(false)} />, document.body)}
   </div>;
 }

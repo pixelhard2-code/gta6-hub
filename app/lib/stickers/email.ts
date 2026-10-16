@@ -3,5 +3,5 @@ import { sendStickerEmailWithConfig, type StickerEmailJob } from "./email-transp
 import { appUrl } from "./server";
 
 export async function sendStickerEmail(job: StickerEmailJob) {
-  return sendStickerEmailWithConfig(job, { apiKey: process.env.RESEND_API_KEY || "", from: process.env.STICKER_EMAIL_FROM || "", appUrl: appUrl() });
+  return sendStickerEmailWithConfig(job, { apiKey: process.env.RESEND_API_KEY || "", from: process.env.STICKER_EMAIL_FROM || "", appUrl: appUrl(), testMode: process.env.MERCADOPAGO_MODE === "test" });
 }

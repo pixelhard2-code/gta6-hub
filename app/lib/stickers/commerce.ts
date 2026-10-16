@@ -1,3 +1,4 @@
+import { stickerCollection } from "./namespace";
 import { createHash, createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getStickerPackage, stickerCounts, totalStickers, validDeliveryEmail } from "./catalog";
@@ -25,6 +26,19 @@ export interface VerifiedPayment {
   live_mode: boolean;
 }
 
+export async function readBuyerStickerOrder(database: Firestore, uid: string, id: string) {
+  if (!/^lc_[a-f0-9]{32}$/.test(id)) throw new Error("invalid-order");
+  const snapshot = await database.collection(stickerCollection("sticker_orders")).doc(id).get();
+  const data = snapshot.data();
+  if (!data || data.uid !== uid) return null;
+  const delivery = await database.collection(stickerCollection("sticker_deliveries")).doc(id).get();
+  return {
+    id, packageId: data.packageId, quantity: data.quantity, email: data.email,
+    amount: data.amount, currency: data.currency, status: data.status,
+    delivery: delivery.data()?.status || "awaiting-payment",
+  };
+}
+
 export function verifyMercadoPagoSignature(secret: string, id: string, requestId: string | null, signature: string | null) {
   if (!secret || !/^\d+$/.test(id) || !requestId || !signature || /[;\r\n]/.test(requestId)) return false;
   const parts = Object.fromEntries(signature.split(",").map((part) => part.trim().split("=")));
@@ -39,7 +53,7 @@ export async function createStickerOrder(database: Firestore, input: {
   const pack = getStickerPackage(input.packageId);
   if (!pack || !validDeliveryEmail(input.email) || !/^[a-f0-9-]{36}$/i.test(input.attemptId) || !Number.isFinite(input.amount) || input.amount <= 0) throw new Error("invalid-order");
   const id = "lc_" + createHash("sha256").update(`${input.uid}:${input.attemptId}`).digest("hex").slice(0, 32);
-  const ref = database.collection("sticker_orders").doc(id);
+  const ref = database.collection(stickerCollection("sticker_orders")).doc(id);
   const order: StickerOrder = { uid: input.uid, email: input.email.trim().toLowerCase(), packageId: pack.id, quantity: pack.stickers, amount: input.amount, currency: input.currency, status: "pending", createdAt: Date.now() };
   const saved = await database.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -55,7 +69,7 @@ export async function createStickerOrder(database: Firestore, input: {
 }
 
 export async function prepareStickerCheckout(database: Firestore, orderId: string, create: (order: StickerOrder) => Promise<{ preferenceId: string; checkoutUrl: string }>) {
-  const ref = database.collection("sticker_orders").doc(orderId);
+  const ref = database.collection(stickerCollection("sticker_orders")).doc(orderId);
   const leaseId = randomUUID();
   const saved = await database.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -89,8 +103,8 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
   if (!/^\d+$/.test(String(payment.id))) throw new Error("invalid-payment");
   if (!/^lc_[a-f0-9]{32}$/.test(payment.external_reference || "")) return { status: "ignored", orderId: null };
   const orderId = payment.external_reference!;
-  const orderRef = database.collection("sticker_orders").doc(orderId);
-  const paymentRef = database.collection("sticker_payments").doc(String(payment.id));
+  const orderRef = database.collection(stickerCollection("sticker_orders")).doc(orderId);
+  const paymentRef = database.collection(stickerCollection("sticker_payments")).doc(String(payment.id));
   return database.runTransaction(async (transaction) => {
     const orderSnap = await transaction.get(orderRef);
     if (!orderSnap.exists) throw new Error("unknown-order");
@@ -99,9 +113,9 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
     if (!pack || order.quantity !== pack.stickers) throw new Error("invalid-order");
     if (String(payment.collector_id) !== merchant.collectorId || payment.live_mode !== merchant.liveMode || payment.currency_id !== order.currency || !Number.isFinite(payment.transaction_amount) || Math.abs(payment.transaction_amount - order.amount) > 0.000001) throw new Error("payment-mismatch");
 
-    const inventoryRef = database.collection("sticker_collections").doc(order.uid);
-    const rankingRef = database.collection("sticker_leaderboard").doc(order.uid);
-    const deliveryRef = database.collection("sticker_deliveries").doc(orderId);
+    const inventoryRef = database.collection(stickerCollection("sticker_collections")).doc(order.uid);
+    const rankingRef = database.collection(stickerCollection("sticker_leaderboard")).doc(order.uid);
+    const deliveryRef = database.collection(stickerCollection("sticker_deliveries")).doc(orderId);
     const [paymentSnap, inventorySnap, profileSnap, deliverySnap] = await Promise.all([
       transaction.get(paymentRef), transaction.get(inventoryRef), transaction.get(database.collection("users").doc(order.uid)), transaction.get(deliveryRef),
     ]);
@@ -144,10 +158,10 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
 }
 
 export async function deliverStickerOrder(database: Firestore, orderId: string, send: (job: { orderId: string; email: string; packageId: string; quantity: number }) => Promise<string>) {
-  const jobRef = database.collection("sticker_deliveries").doc(orderId);
+  const jobRef = database.collection(stickerCollection("sticker_deliveries")).doc(orderId);
   const leaseId = randomUUID();
   const job = await database.runTransaction(async (transaction) => {
-    const [snapshot, orderSnapshot] = await Promise.all([transaction.get(jobRef), transaction.get(database.collection("sticker_orders").doc(orderId))]);
+    const [snapshot, orderSnapshot] = await Promise.all([transaction.get(jobRef), transaction.get(database.collection(stickerCollection("sticker_orders")).doc(orderId))]);
     const data = snapshot.data();
     if (!data || data.method === "manual" || orderSnapshot.data()?.status !== "approved" || ["sent", "cancelled"].includes(data.status) || Number(data.leaseUntil || 0) > Date.now()) return null;
     transaction.update(jobRef, { status: "sending", leaseId, leaseUntil: Date.now() + 60000, attempts: Number(data.attempts || 0) + 1 });

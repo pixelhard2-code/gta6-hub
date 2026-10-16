@@ -14,6 +14,9 @@ const { STICKER_PACKAGES, validDeliveryEmail } = require(join(process.env.STICKE
 const { stickerZip } = require(join(process.env.STICKER_TEST_BUILD, "files.js"));
 const { creditDashboardReviewedPurchase, markManualStickerEmailSent } = require(join(process.env.STICKER_TEST_BUILD, "manual.js"));
 const { sendStickerEmailWithConfig } = require(join(process.env.STICKER_TEST_BUILD, "email-transport.js"));
+const { checkoutPolicy, allowedTestBuyer } = require(join(process.env.STICKER_TEST_BUILD, "checkout-policy.js"));
+const { stickerCollection } = require(join(process.env.STICKER_TEST_BUILD, "namespace.js"));
+const { readBuyerStickerOrder } = require(join(process.env.STICKER_TEST_BUILD, "commerce.js"));
 const app = initializeApp({ projectId: "demo-gta6hub-follow" }, `stickers-${randomUUID()}`);
 const db = getFirestore(app);
 after(async () => { await db.terminate(); await deleteApp(app); });
@@ -25,6 +28,85 @@ async function order(packageId = "legend", uid = `buyer-${randomUUID()}`) {
   return { ...result, uid, payment };
 }
 const collection = async (uid) => (await db.collection("sticker_collections").doc(uid).get()).data();
+
+test("test checkout requires its own switch and a valid authorized email", () => {
+  const env = { MERCADOPAGO_MODE: "test", STICKER_SALES_ENABLED: "true" };
+  assert.equal(checkoutPolicy(env).enabled, false);
+  assert.equal(checkoutPolicy({ ...env, STICKER_TEST_ENABLED: "true", STICKER_TEST_BUYER_EMAIL: "bad" }).enabled, false);
+  const policy = checkoutPolicy({ ...env, STICKER_TEST_ENABLED: "true", STICKER_TEST_BUYER_EMAIL: " Buyer@Example.com " });
+  assert.equal(policy.enabled, true);
+  assert.equal(policy.liveMode, false);
+  assert.equal(policy.testEmail, "buyer@example.com");
+});
+test("receipt data is private to its buyer and never trusts the return URL for approval", async () => {
+  const item = await order("basic");
+  const receipt = await readBuyerStickerOrder(db, item.uid, item.id);
+  assert.equal(receipt.status, "pending");
+  assert.equal(receipt.delivery, "awaiting-payment");
+  assert.equal(await readBuyerStickerOrder(db, "different-buyer", item.id), null);
+  assert.equal(await readBuyerStickerOrder(db, item.uid, "lc_" + "f".repeat(32)), null);
+  await assert.rejects(readBuyerStickerOrder(db, item.uid, "../users"), /invalid-order/);
+  await applyVerifiedPayment(db, item.payment, merchant);
+  assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).status, "approved");
+  assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).delivery, "pending");
+  await deliverStickerOrder(db, item.id, async () => "simulated-receipt-email");
+  assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).delivery, "sent");
+});
+test("verified identity, not a public profile field, authorizes the private trial", () => {
+  assert.equal(allowedTestBuyer({ email: "BUYER@example.com", email_verified: true }, "buyer@example.com"), true);
+  assert.equal(allowedTestBuyer({ email: "buyer@example.com", email_verified: false }, "buyer@example.com"), false);
+  assert.equal(allowedTestBuyer({ email: "another@example.com", email_verified: true }, "buyer@example.com"), false);
+  assert.equal(allowedTestBuyer({ email: "buyer@example.com", email_verified: true }, ""), false);
+});
+test("test activation cannot enable real sales and unknown modes fail closed", () => {
+  const env = { MERCADOPAGO_MODE: "production", STICKER_TEST_ENABLED: "true", STICKER_TEST_BUYER_EMAIL: "buyer@example.com" };
+  assert.equal(checkoutPolicy(env).enabled, false);
+  assert.equal(checkoutPolicy({ ...env, STICKER_SALES_ENABLED: "true" }).enabled, true);
+  assert.equal(checkoutPolicy({ ...env, MERCADOPAGO_MODE: "typo", STICKER_SALES_ENABLED: "true" }).enabled, false);
+  assert.equal(stickerCollection("sticker_orders", "production"), "sticker_orders");
+  assert.equal(stickerCollection("sticker_orders", "test"), "sticker_test_orders");
+});
+
+test("same buyer and attempt stay isolated across simulated and real purchase ledgers", async () => {
+  const previous = process.env.MERCADOPAGO_MODE;
+  const uid = "isolated-" + randomUUID(), attemptId = randomUUID();
+  const input = { uid, attemptId, email: "buyer@example.invalid", currency: "CLP" };
+  try {
+    process.env.MERCADOPAGO_MODE = "production";
+    const real = await createStickerOrder(db, { ...input, packageId: "basic", amount: 3000 });
+    await applyVerifiedPayment(db, { id: String(++sequence), external_reference: real.id, status: "approved", transaction_amount: 3000, currency_id: "CLP", collector_id: "12345", live_mode: true }, { collectorId: "12345", liveMode: true });
+    process.env.MERCADOPAGO_MODE = "test";
+    const trial = await createStickerOrder(db, { ...input, packageId: "double", amount: 5000 });
+    assert.equal(trial.id, real.id);
+    await applyVerifiedPayment(db, { id: String(++sequence), external_reference: trial.id, status: "approved", transaction_amount: 5000, currency_id: "CLP", collector_id: "12345", live_mode: false }, merchant);
+    let sends = 0;
+    await deliverStickerOrder(db, trial.id, async () => { sends++; return "simulated-only"; });
+    assert.equal(sends, 1);
+    assert.equal((await db.collection("sticker_collections").doc(uid).get()).data().total, 1);
+    assert.equal((await db.collection("sticker_test_collections").doc(uid).get()).data().total, 2);
+    assert.equal((await db.collection("sticker_orders").doc(real.id).get()).data().packageId, "basic");
+    assert.equal((await db.collection("sticker_test_orders").doc(trial.id).get()).data().packageId, "double");
+    assert.equal((await db.collection("sticker_deliveries").doc(real.id).get()).data().status, "pending");
+    assert.equal((await db.collection("sticker_test_deliveries").doc(trial.id).get()).data().status, "sent");
+  } finally {
+    if (previous === undefined) delete process.env.MERCADOPAGO_MODE;
+    else process.env.MERCADOPAGO_MODE = previous;
+  }
+});
+
+test("trial emails use a separate idempotency key and do not promise real entries", async () => {
+  const job = { orderId: "lc_" + "a".repeat(32), email: "buyer@example.invalid", packageId: "basic", quantity: 1 };
+  let captured;
+  await sendStickerEmailWithConfig(job, { apiKey: "fake-local", from: "trial@example.invalid", appUrl: "https://example.invalid", testMode: true }, async (_url, request) => {
+    captured = request;
+    return Response.json({ id: "simulated-email" });
+  });
+  assert.equal(captured.headers["Idempotency-Key"], "stickers-test-" + job.orderId);
+  const payload = JSON.parse(captured.body);
+  assert.match(payload.text, /compra simulada no participa/);
+  assert.match(payload.text, /\/compra\?orden=lc_/);
+  assert.equal(payload.attachments.length, 1);
+});
 
 test("the three supplied payment links match the 1, 2 and 5 sticker packs", () => {
   assert.deepEqual(STICKER_PACKAGES.map(p=>[p.stickers,p.price,p.paymentUrl]), [[1,3,"https://mpago.la/2SARTNX"],[2,5,"https://mpago.la/1J28NAx"],[5,10,"https://mpago.la/22A25HZ"]]);
@@ -177,7 +259,7 @@ test("email retries send the same purchased archive, recipient and idempotency k
   assert.equal(requests[0].headers["Idempotency-Key"],`stickers-${item.id}`);
   const mail=JSON.parse(requests[0].body);
   assert.deepEqual(mail.to,[job.email]);
-  assert.ok(mail.text.includes("https://example.invalid/perfil"));
+  assert.ok(mail.text.includes("https://example.invalid/compra?orden=" + item.id));
   assert.equal(mail.attachments[0].filename,"leonidacrew-double.zip");
   assert.deepEqual(Object.keys(unzipSync(Buffer.from(mail.attachments[0].content,"base64"))).filter(name=>name.endsWith(".png")),["vice-palm.png","night-ride.png"]);
   await assert.rejects(sendStickerEmailWithConfig(job,config,async()=>Response.json({error:"simulated"},{status:500})),/email-provider-failed/);

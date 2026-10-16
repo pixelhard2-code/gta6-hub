@@ -24,4 +24,7 @@ STICKER_EMAIL_FROM=
 APP_URL=https://gta6-hub-coral.vercel.app
 # Set true only after configuring the rules, sender, payment notification and prices.
 STICKER_SALES_ENABLED=false
+# Optional private test on the public domain; never grants real entries.
+STICKER_TEST_ENABLED=false
+STICKER_TEST_BUYER_EMAIL=
 CRON_SECRET=

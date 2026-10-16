@@ -1,5 +1,6 @@
 import "server-only";
 import { STICKER_PACKAGES } from "./catalog";
+import { checkoutPolicy } from "./checkout-policy";
 
 export function adminConfigured() {
   return Boolean(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT || (process.env.FIREBASE_ADMIN_PROJECT_ID && process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY));
@@ -34,11 +35,12 @@ export async function authenticatedBuyer(request: Request) {
 }
 
 export function commerceConfig() {
+  const policy = checkoutPolicy();
   const currency = process.env.MERCADOPAGO_CURRENCY || "";
   const amounts = Object.fromEntries(STICKER_PACKAGES.map((pack) => [pack.id, Number(process.env[`MERCADOPAGO_PACK_${pack.id.toUpperCase()}_AMOUNT`])]));
   const pricesValid = ["CLP", "USD"].includes(currency) && Object.values(amounts).every((amount) => Number.isFinite(amount) && amount > 0 && (currency !== "CLP" || Number.isInteger(amount)));
-  const ready = process.env.STICKER_SALES_ENABLED === "true" && adminConfigured() && pricesValid && Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN && process.env.MERCADOPAGO_WEBHOOK_SECRET && process.env.MERCADOPAGO_COLLECTOR_ID && process.env.RESEND_API_KEY && process.env.STICKER_EMAIL_FROM && process.env.APP_URL);
-  return { ready, currency, amounts, collectorId: process.env.MERCADOPAGO_COLLECTOR_ID || "", liveMode: process.env.MERCADOPAGO_MODE !== "test" };
+  const ready = policy.enabled && adminConfigured() && pricesValid && Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN && process.env.MERCADOPAGO_WEBHOOK_SECRET && process.env.MERCADOPAGO_COLLECTOR_ID && process.env.RESEND_API_KEY && process.env.STICKER_EMAIL_FROM && process.env.APP_URL);
+  return { ready, currency, amounts, collectorId: process.env.MERCADOPAGO_COLLECTOR_ID || "", liveMode: policy.liveMode, testEmail: policy.testEmail };
 }
 
 export function appUrl() {
@@ -56,6 +58,6 @@ export async function mercadoPago(path: string, init?: RequestInit) {
 
 export function apiError(error: unknown) {
   const code = error instanceof Error ? error.message : "unknown";
-  const status = code === "unauthorized" ? 401 : ["invalid-order", "invalid-email", "invalid-package", "conflicting-order"].includes(code) ? 400 : code === "checkout-busy" ? 409 : code === "too-many-attempts" ? 429 : code === "setup-required" ? 503 : 500;
-  return Response.json({ code: status === 500 ? "request-failed" : code, message: status === 401 ? "Inicia sesión para continuar." : status === 503 ? "La entrega automática aún está en preparación." : "No se pudo completar la solicitud. Inténtalo nuevamente." }, { status });
+  const status = code === "unauthorized" ? 401 : code === "test-not-allowed" ? 403 : ["invalid-order", "invalid-email", "invalid-package", "conflicting-order"].includes(code) ? 400 : ["checkout-busy", "test-unavailable"].includes(code) ? 409 : code === "too-many-attempts" ? 429 : ["setup-required", "merchant-mismatch"].includes(code) ? 503 : 500;
+  return Response.json({ code: status === 500 ? "request-failed" : code, message: status === 401 ? "Inicia sesión para continuar." : code === "test-not-allowed" ? "Esta cuenta no tiene acceso a la prueba de pago." : code === "test-unavailable" ? "La prueba está desactivada. No se ha creado ningún pago." : code === "merchant-mismatch" ? "El Access Token no corresponde al vendedor configurado. Revisa las credenciales en Vercel." : status === 503 ? "La entrega automática aún está en preparación." : "No se pudo completar la solicitud. Inténtalo nuevamente." }, { status, headers: { "Cache-Control": "no-store" } });
 }

@@ -1,3 +1,4 @@
+import { stickerCollection } from "@/app/lib/stickers/namespace";
 import { authenticatedBuyer, stickerAdmin, apiError } from "@/app/lib/stickers/server";
 import { deliverStickerOrder } from "@/app/lib/stickers/commerce";
 import { sendStickerEmail } from "@/app/lib/stickers/email";
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
     const { orderId } = await request.json();
     if (typeof orderId !== "string" || !/^lc_[a-f0-9]{32}$/.test(orderId)) throw new Error("invalid-order");
     const { db } = stickerAdmin();
-    const order = await db.collection("sticker_orders").doc(orderId).get();
+    const order = await db.collection(stickerCollection("sticker_orders")).doc(orderId).get();
     if (order.data()?.uid !== buyer.uid || order.data()?.status !== "approved") return Response.json({ error: "not-your-order" }, { status: 403 });
     const sent = await deliverStickerOrder(db, orderId, sendStickerEmail);
     return Response.json({ sent });

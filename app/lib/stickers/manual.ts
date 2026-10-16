@@ -1,3 +1,4 @@
+import { stickerCollection } from "./namespace";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getStickerPackage, stickerCounts, totalStickers, validDeliveryEmail } from "./catalog";
@@ -11,11 +12,11 @@ export async function creditDashboardReviewedPurchase(database: Firestore, input
   if (input.confirmedInDashboard !== true || !pack || !/^[1-9]\d*$/.test(input.paymentId) || !/^[\w-]{1,128}$/.test(input.uid) || !validDeliveryEmail(input.email) || !Number.isFinite(input.amount) || input.amount <= 0 || !["CLP", "USD"].includes(input.currency) || (input.currency === "CLP" && !Number.isInteger(input.amount)) || !input.reviewer.trim() || input.reviewer.length > 80) throw new Error("manual-review-required");
   const id = "lc_" + createHash("sha256").update(`direct:${input.paymentId}`).digest("hex").slice(0,32);
   const email = input.email.toLowerCase();
-  const orderRef = database.collection("sticker_orders").doc(id);
-  const paymentRef = database.collection("sticker_payments").doc(input.paymentId);
-  const inventoryRef = database.collection("sticker_collections").doc(input.uid);
-  const rankingRef = database.collection("sticker_leaderboard").doc(input.uid);
-  const deliveryRef = database.collection("sticker_deliveries").doc(id);
+  const orderRef = database.collection(stickerCollection("sticker_orders")).doc(id);
+  const paymentRef = database.collection(stickerCollection("sticker_payments")).doc(input.paymentId);
+  const inventoryRef = database.collection(stickerCollection("sticker_collections")).doc(input.uid);
+  const rankingRef = database.collection(stickerCollection("sticker_leaderboard")).doc(input.uid);
+  const deliveryRef = database.collection(stickerCollection("sticker_deliveries")).doc(id);
   return database.runTransaction(async transaction => {
     const [orderSnap, paymentSnap, inventorySnap, profileSnap] = await Promise.all([
       transaction.get(orderRef), transaction.get(paymentRef), transaction.get(inventoryRef), transaction.get(database.collection("users").doc(input.uid)),
@@ -42,8 +43,8 @@ export async function creditDashboardReviewedPurchase(database: Firestore, input
 export async function markManualStickerEmailSent(database: Firestore, orderId: string) {
   if (!/^lc_[a-f0-9]{32}$/.test(orderId)) throw new Error("invalid-order");
   return database.runTransaction(async transaction => {
-    const jobRef = database.collection("sticker_deliveries").doc(orderId);
-    const [job, order] = await Promise.all([transaction.get(jobRef), transaction.get(database.collection("sticker_orders").doc(orderId))]);
+    const jobRef = database.collection(stickerCollection("sticker_deliveries")).doc(orderId);
+    const [job, order] = await Promise.all([transaction.get(jobRef), transaction.get(database.collection(stickerCollection("sticker_orders")).doc(orderId))]);
     if (job.data()?.method !== "manual" || order.data()?.status !== "approved") throw new Error("not-manual-delivery");
     if (job.data()?.status === "sent") return false;
     if (job.data()?.status !== "manual-pending") throw new Error("invalid-delivery-status");
