@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function owns(uid) { return signedIn() && request.auth.uid == uid; }
+    function hasBiography() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('bio', '') is string
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('bio', '').matches('[\\s\\S]*\\S[\\s\\S]*');
+    }
+    function shortText(value, maximum) { return value is string && value.size() <= maximum; }
+    function uniqueIds(ids, uid) {
+      return ids is list && ids.size() == ids.toSet().size() && !ids.hasAny([uid]);
+    }
+    function validProfile(data, uid) {
+      return data.uid == uid && data.email == request.auth.token.get('email', '')
+        && shortText(data.displayName, 15) && data.displayName.size() >= 3
+        && shortText(data.bio, 500) && shortText(data.photoURL, 2048);
+    }
+    function peerFollowsAfter(peer, uid, desired) {
+      return peer is string && peer != uid
+        && exists(/databases/$(database)/documents/users/$(peer))
+        && getAfter(/databases/$(database)/documents/users/$(peer)).data.get('followers', []).hasAny([uid]) == desired;
+    }
+    function changeFollowing(uid) {
+      let before = resource.data.get('following', []);
+      let next = request.resource.data.get('following', []);
+      let added = next.removeAll(before);
+      let removed = before.removeAll(next);
+      return owns(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['following'])
+        && uniqueIds(next, uid)
+        && (next.toSet() == before.toSet()
+          || (added.size() == 1 && removed.size() == 0 && hasBiography() && peerFollowsAfter(added[0], uid, true))
+          || (added.size() == 0 && removed.toSet().size() == 1 && peerFollowsAfter(removed[0], uid, false)));
+    }
+    function changeFollowers(uid) {
+      let caller = request.auth.uid;
+      let before = resource.data.get('followers', []).toSet();
+      let next = request.resource.data.get('followers', []);
+      let ownId = [caller].toSet();
+      return caller != uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers'])
+        && uniqueIds(next, uid)
+        && (next.toSet() == before
+          || (next.toSet() == before.union(ownId) && hasBiography()
+            && getAfter(/databases/$(database)/documents/users/$(caller)).data.get('following', []).hasAny([uid]))
+          || (next.toSet() == before.difference(ownId)
+            && !getAfter(/databases/$(database)/documents/users/$(caller)).data.get('following', []).hasAny([uid])));
+    }
+    match /users/{uid} {
+      // The existing community and public profile pages read these documents.
+      allow read: if true;
+      allow create: if owns(uid) && validProfile(request.resource.data, uid)
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'bio', 'photoURL', 'reputation', 'tickets', 'followers', 'following'])
+        && request.resource.data.reputation == 10 && request.resource.data.tickets == 0
+        && request.resource.data.followers == [] && request.resource.data.following == [];
+      allow update: if signedIn() && (
+        (owns(uid) && validProfile(request.resource.data, uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid', 'email', 'displayName', 'bio', 'photoURL']))
+        || changeFollowing(uid) || changeFollowers(uid));
+      allow delete: if false;
+    }
+    function validMessage(data) {
+      return hasBiography() && data.authorId == request.auth.uid
+        && shortText(data.authorName, 100) && data.authorName.size() > 0
+        && shortText(data.authorPhoto, 2048)
+        && shortText(data.content, 10000) && data.content.size() > 0
+        && data.createdAt is int && data.createdAt > 0
+        && data.createdAt <= request.time.toMillis() + 300000;
+    }
+    function ownLike() {
+      let before = resource.data.get('likedBy', []).toSet();
+      let next = request.resource.data.get('likedBy', []);
+      let ownId = [request.auth.uid].toSet();
+      return next is list && next.size() == next.toSet().size()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
+        && (next.toSet() == before.union(ownId) || next.toSet() == before.difference(ownId));
+    }
+    function replyCounterChange(postId) {
+      let next = request.resource.data;
+      let before = resource.data.get('replyCount', 0);
+      let replyId = next.get('replyMutationId', '');
+      let path = /databases/$(database)/documents/posts/$(postId)/comments/$(replyId);
+      return replyId is string && replyId.matches('[A-Za-z0-9]{20}')
+        && next.diff(resource.data).affectedKeys().hasOnly(['replyCount', 'replyMutationId', 'lastReplyAuthor', 'lastReplyAt'])
+        && next.replyCount is int && next.replyCount >= 0
+        && ((!exists(path) && existsAfter(path) && getAfter(path).data.authorId == request.auth.uid
+              && next.replyCount == before + 1
+              && next.lastReplyAuthor == getAfter(path).data.authorName
+              && next.lastReplyAt == getAfter(path).data.createdAt)
+          || (exists(path) && !existsAfter(path)
+              && (get(path).data.authorId == request.auth.uid || resource.data.authorId == request.auth.uid)
+              && next.replyCount == (before > 0 ? before - 1 : 0)
+              && next.get('lastReplyAuthor', '') == resource.data.get('lastReplyAuthor', '')
+              && next.get('lastReplyAt', 0) == resource.data.get('lastReplyAt', 0)));
+    }
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if validMessage(request.resource.data)
+        && request.resource.data.keys().hasOnly(['authorId', 'authorName', 'authorPhoto', 'content', 'createdAt', 'likedBy', 'replyCount'])
+        && request.resource.data.likedBy == [] && request.resource.data.replyCount == 0;
+      allow update: if signedIn() && (ownLike() || replyCounterChange(postId));
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+      match /comments/{commentId} {
+        allow read: if exists(/databases/$(database)/documents/posts/$(postId));
+        allow create: if validMessage(request.resource.data)
+          && request.resource.data.keys().hasOnly(['authorId', 'authorName', 'authorPhoto', 'content', 'createdAt'])
+          && exists(/databases/$(database)/documents/posts/$(postId))
+          && getAfter(/databases/$(database)/documents/posts/$(postId)).data.get('replyMutationId', '') == commentId
+          && getAfter(/databases/$(database)/documents/posts/$(postId)).data.replyCount
+            == get(/databases/$(database)/documents/posts/$(postId)).data.get('replyCount', 0) + 1;
+        allow update: if false;
+        allow delete: if signedIn()
+          && (resource.data.authorId == request.auth.uid
+            || get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid)
+          && (!exists(/databases/$(database)/documents/posts/$(postId))
+            || (getAfter(/databases/$(database)/documents/posts/$(postId)).data.get('replyMutationId', '') == commentId
+              && getAfter(/databases/$(database)/documents/posts/$(postId)).data.replyCount
+                == (get(/databases/$(database)/documents/posts/$(postId)).data.get('replyCount', 0) > 0
+                  ? get(/databases/$(database)/documents/posts/$(postId)).data.replyCount - 1 : 0)));
+      }
+    }
+    match /support_tickets/{ticketId} {
+      allow create: if request.resource.data.keys().hasAll(['ticketCode', 'topic', 'name', 'email', 'message', 'userId', 'createdAt', 'status'])
+        && request.resource.data.keys().hasOnly(['ticketCode', 'topic', 'name', 'email', 'message', 'userId', 'createdAt', 'status', 'paymentOperationId', 'stickerPackageId', 'deliveryEmail', 'paymentVerification'])
+        && request.resource.data.ticketCode is string && request.resource.data.ticketCode.matches('TKT-[0-9]{6}')
+        && request.resource.data.topic in ['tickets', 'sticker-payment', 'bug', 'account', 'moderation', 'suggestion', 'other']
+        && shortText(request.resource.data.name, 150) && shortText(request.resource.data.email, 254)
+        && shortText(request.resource.data.message, 10000) && request.resource.data.message.size() > 0
+        && request.resource.data.status == 'open' && request.resource.data.createdAt is int
+        && request.resource.data.createdAt > 0 && request.resource.data.createdAt <= request.time.toMillis() + 300000
+        && ((signedIn() && request.resource.data.userId == request.auth.uid) || (!signedIn() && request.resource.data.userId == null))
+        && ((request.resource.data.topic != 'sticker-payment'
+            && !request.resource.data.keys().hasAny(['paymentOperationId', 'stickerPackageId', 'deliveryEmail', 'paymentVerification']))
+          || (signedIn() && request.resource.data.topic == 'sticker-payment'
+            && request.resource.data.paymentOperationId is string
+            && request.resource.data.paymentOperationId.matches('[1-9][0-9]{0,29}')
+            && request.resource.data.stickerPackageId in ['basic', 'double', 'legend']
+            && request.resource.data.deliveryEmail == request.resource.data.email
+            && request.resource.data.paymentVerification == 'pending-merchant-review'));
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+    // No browser access to purchases, balances, payment records or delivery jobs.
+    // Firebase Admin on the server uses IAM and is unaffected by these rules.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

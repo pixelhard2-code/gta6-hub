@@ -5,7 +5,8 @@ import Link from "next/link";
 import { db } from "@/app/lib/firebase";
 import { type User } from "firebase/auth";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
-import { collection, addDoc, query, orderBy, limit, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot, getCountFromServer, increment } from "firebase/firestore";
+import { collection, addDoc, query, orderBy, limit, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot, getCountFromServer } from "firebase/firestore";
+import { createCommunityReply, deleteCommunityReply } from "@/app/lib/community-actions";
 import AuthModal from "@/app/components/AuthModal";
 import GiveawayCard from "@/app/components/GiveawayCard";
 import StickerRanking from "@/app/components/StickerRanking";
@@ -114,16 +115,7 @@ function CommentSection({
         content: newComment.trim(),
         createdAt: Date.now(),
       };
-      await addDoc(collection(db, "posts", postId, "comments"), replyData);
-      try {
-        await updateDoc(doc(db, "posts", postId), {
-          replyCount: increment(1),
-          lastReplyAuthor: author.authorName,
-          lastReplyAt: replyData.createdAt,
-        });
-      } catch {
-        // Safe update fallback
-      }
+      await createCommunityReply(db, postId, replyData);
       setNewComment("");
     } catch {
       setError("Tu respuesta no se pudo publicar. Inténtalo nuevamente.");
@@ -135,14 +127,7 @@ function CommentSection({
   async function handleDeleteReply(replyId: string) {
     setIsDeletingReply(replyId);
     try {
-      await deleteDoc(doc(db, "posts", postId, "comments", replyId));
-      try {
-        await updateDoc(doc(db, "posts", postId), {
-          replyCount: increment(-1),
-        });
-      } catch {
-        // Safe update fallback
-      }
+      await deleteCommunityReply(db, postId, replyId);
       setReplyToDelete(null);
     } catch {
       setError("No se pudo eliminar la respuesta. Inténtalo nuevamente.");

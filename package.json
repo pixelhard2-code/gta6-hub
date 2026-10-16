@@ -9,7 +9,8 @@
     "lint": "next lint",
     "test:profiles": "node scripts/test-profiles.mjs",
     "test:stickers": "node scripts/test-stickers.mjs",
-    "test:purchase-requests": "node scripts/test-purchase-requests.mjs"
+    "test:purchase-requests": "node scripts/test-purchase-requests.mjs",
+    "test:rules": "node scripts/test-firestore-rules.mjs"
   },
   "engines": { "node": ">=22" },
   "dependencies": {

@@ -32,6 +32,11 @@ El ejemplo completo de nombres de variables está en [sticker-env.example](./sti
 
 ## Reglas de Firebase: paso necesario
 
+La fuente completa de producción es el archivo firestore.rules de la raíz.
+Publica su contenido completo siguiendo [estas instrucciones](./firestore-security.md),
+después de desplegar el código compatible de la comunidad. No basta agregar los
+bloques siguientes bajo la regla global abierta: esa regla debe reemplazarse.
+
 Las colecciones que empiezan por `sticker_` son **privadas y sólo el servidor Admin debe escribir o leer directamente**. La web accede por endpoints que verifican el token de Firebase; la colección pública y el ranking eliminan el correo y los datos de pago.
 
 Incorpora estas restricciones a las reglas reales de tu proyecto, conservando las reglas de usuarios, publicaciones, respuestas y soporte:
