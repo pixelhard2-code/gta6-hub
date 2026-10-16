@@ -11,6 +11,7 @@ Configurar en Vercel Production:
 - MERCADOPAGO_MODE=test.
 - STICKER_SALES_ENABLED=false.
 - STICKER_TEST_ENABLED=true.
+- NODE_OPTIONS=--experimental-require-module (Node 24 en Vercel).
 - Credenciales de Mercado Pago de la cuenta vendedora de prueba, su User ID y la
   firma Webhook de la aplicación; Firebase Admin y Resend deben estar configurados.
 
@@ -56,3 +57,13 @@ Para vender de verdad, desactivar STICKER_TEST_ENABLED, configurar el token, Use
 y Webhook productivos del vendedor real, poner MERCADOPAGO_MODE=production y activar
 STICKER_SALES_ENABLED sólo al finalizar la verificación. Volver a desplegar.
 Las colecciones de prueba no se convierten en saldos reales.
+
+## Compatibilidad de Firebase Admin en Vercel
+
+Firebase Admin 14 utiliza jwks-rsa 4 y jose 6. En Node 24, Vercel desactiva por
+defecto require(ESM), por lo que firebase-admin/auth falla con ERR_REQUIRE_ESM.
+Configurar NODE_OPTIONS=--experimental-require-module y volver a desplegar aplica
+la [opción documentada por Vercel](https://vercel.com/docs/functions/runtimes/node-js/advanced-node-configuration#experimental-node.js-require-of-es-module), sin cambiar las versiones de las dependencias.
+El [problema original está registrado en Firebase](https://github.com/firebase/firebase-admin-node/issues/3181).
+La prueba real del SDK y el control de sesiones se ejecutan con
+`node --test tests/sticker-auth.test.mjs`; no utilizan credenciales ni usuarios reales.

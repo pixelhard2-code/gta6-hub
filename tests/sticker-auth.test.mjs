@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import { execFileSync } from "node:child_process";
 
 function load(path, dependencies = {}, env = {}) {
   const code = ts.transpileModule(readFileSync(path, "utf8"), {
@@ -22,6 +23,28 @@ const catalog = load("app/lib/stickers/catalog.ts");
 const policy = load("app/lib/stickers/checkout-policy.ts");
 const errors = load("app/lib/stickers/auth-errors.ts");
 const account = { project_id: "demo-auth", client_email: "server@example.invalid", private_key: "example\\nkey" };
+
+test("the actual Firebase SDK loads and rejects invalid tokens with Vercel's configured Node flag", () => {
+  const script = `
+    const { generateKeyPairSync } = require('node:crypto');
+    const { cert, initializeApp, deleteApp } = require('firebase-admin/app');
+    const { getAuth } = require('firebase-admin/auth');
+    const { getFirestore } = require('firebase-admin/firestore');
+    (async () => {
+      const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+      const app = initializeApp({ credential: cert({ projectId: 'demo-auth', clientEmail: 'test@example.invalid', privateKey: privateKey.export({ type: 'pkcs8', format: 'pem' }) }) });
+      getFirestore(app);
+      let rejected = false;
+      try { await getAuth(app).verifyIdToken('invalid-token', true); }
+      catch (error) { rejected = error.code === 'auth/argument-error'; }
+      await deleteApp(app);
+      if (!rejected) throw new Error('Invalid token was not rejected');
+      console.log('sdk-ready');
+    })().catch(() => process.exit(1));
+  `;
+  const output = execFileSync(process.execPath, ["--experimental-require-module", "-e", script], { encoding: "utf8" });
+  assert.equal(output.trim(), "sdk-ready");
+});
 
 function server({ env = {}, verify = async () => ({ uid: "buyer", email_verified: true }), sdk = true } = {}) {
   let savedAccount;
