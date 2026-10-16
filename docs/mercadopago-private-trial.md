@@ -1,8 +1,8 @@
-# Prueba privada de Checkout Pro
+# Prueba de Checkout Pro
 
-La ruta /prueba-pago permite probar el pack básico con la cuenta de LeonidaCrew
-autorizada. No aparece en la navegación ni se indexa. El servidor verifica el correo
-del token de Firebase y su verificación; un campo editable del perfil no otorga acceso.
+La ruta /prueba-pago permite probar el pack básico con cualquier cuenta de LeonidaCrew
+autenticada con un correo verificado. No aparece en la navegación ni se indexa.
+El servidor valida el token de Firebase; no existe una lista de correos autorizados.
 
 ## Variables privadas del servidor
 
@@ -11,7 +11,6 @@ Configurar en Vercel Production:
 - MERCADOPAGO_MODE=test.
 - STICKER_SALES_ENABLED=false.
 - STICKER_TEST_ENABLED=true.
-- STICKER_TEST_BUYER_EMAIL: correo verificado de la cuenta de LeonidaCrew del tester.
 - Credenciales de Mercado Pago de la cuenta vendedora de prueba, su User ID y la
   firma Webhook de la aplicación; Firebase Admin y Resend deben estar configurados.
 
@@ -46,7 +45,7 @@ Los visitantes normales conservan los enlaces manuales existentes durante la pru
 
 ## Comprobación antes de habilitar ventas
 
-1. Autenticar la cuenta autorizada en /prueba-pago y crear una compra.
+1. Iniciar sesión con cualquier cuenta con correo verificado en /prueba-pago y crear una compra.
 2. Pagar con una cuenta compradora de prueba de Mercado Pago del mismo país y sus
    tarjetas de prueba; no usar una cuenta vendedora para comprar.
 3. Comprobar en /compra que el pago se confirma desde el servidor y el correo se envía.

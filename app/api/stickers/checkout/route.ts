@@ -2,7 +2,8 @@ import { stickerCollection } from "@/app/lib/stickers/namespace";
 import { authenticatedBuyer, commerceConfig, mercadoPago, stickerAdmin, appUrl, apiError } from "@/app/lib/stickers/server";
 import { getStickerPackage, STICKER_PACKAGES, validDeliveryEmail } from "@/app/lib/stickers/catalog";
 import { createStickerOrder, prepareStickerCheckout } from "@/app/lib/stickers/commerce";
-import { allowedTestBuyer, testBuyerAccess } from "@/app/lib/stickers/checkout-policy";
+import { testBuyerAccess } from "@/app/lib/stickers/checkout-policy";
+import { checkoutAuthAccess } from "@/app/lib/stickers/auth-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,12 +11,13 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const config = commerceConfig();
   let access = config.ready ? "ready" : "setup-required";
-  if (config.ready && !config.liveMode) {
-    if (!request.headers.has("authorization")) access = "sign-in-required";
-    else {
-      try { access = testBuyerAccess(await authenticatedBuyer(request), config.testEmail); }
-      catch { access = "session-invalid"; }
-    }
+  if (config.ready) {
+    try {
+      // Validate server initialization too: a broken Admin configuration is not a bad login.
+      stickerAdmin();
+      if (!config.liveMode) access = request.headers.has("authorization")
+        ? testBuyerAccess(await authenticatedBuyer(request)) : "sign-in-required";
+    } catch (error) { access = checkoutAuthAccess(error); }
   }
   const allowed = access === "ready";
   return Response.json({ automatic: allowed, testMode: allowed && !config.liveMode, access, quotes: allowed ? STICKER_PACKAGES.map((pack) => ({ id: pack.id, amount: config.amounts[pack.id], currency: config.currency })) : [] }, { headers: { "Cache-Control": "no-store" } });
@@ -27,7 +29,6 @@ export async function POST(request: Request) {
     if (!config.ready) throw new Error("setup-required");
     const buyer = await authenticatedBuyer(request);
     if (!buyer.email_verified) throw new Error("unauthorized");
-    if (!config.liveMode && !allowedTestBuyer(buyer, config.testEmail)) throw new Error("test-not-allowed");
     const body = await request.json();
     if (body.expectedMode === "test" && config.liveMode) throw new Error("test-unavailable");
     const pack = getStickerPackage(body.packageId);
