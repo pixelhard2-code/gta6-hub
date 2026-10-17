@@ -9,6 +9,7 @@ import styles from "./Hub.module.css";
 interface Purchase {
   id: string; quantity: number; email: string; amount: number; currency: string;
   status: string; delivery: string; testMode: boolean; deliveryError?: boolean;
+  verificationError?: { code: string; message: string } | null;
 }
 
 export default function PurchaseStatus() {
@@ -51,15 +52,17 @@ export default function PurchaseStatus() {
               method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
               body: JSON.stringify({ ...(paymentId ? { paymentId } : {}) }), signal: controller.signal,
             });
-            if (!sync.ok) throw new Error("sync-failed");
-            result = await sync.json() as Purchase;
-          } catch {
+            const synchronized = await sync.json().catch(() => null);
+            if (!sync.ok) throw new Error(typeof synchronized?.message === "string" ? synchronized.message : `No pudimos consultar la confirmación (HTTP ${sync.status}).`);
+            if (!synchronized || synchronized.id !== orderId) throw new Error("No pudimos leer la respuesta de confirmación de esta compra.");
+            result = synchronized as Purchase;
+          } catch (problem) {
             if (controller.signal.aborted) return;
-            syncError = "No pudimos actualizar la confirmación en este momento. Puedes volver a intentarlo con Actualizar estado.";
+            syncError = problem instanceof Error ? problem.message : "No pudimos actualizar la confirmación en este momento.";
           }
         }
         if (!active) return;
-        setPurchase({ ...result, buyerUid: user.uid }); setError(syncError);
+        setPurchase({ ...result, buyerUid: user.uid }); setError(syncError || result.verificationError?.message || "");
         if (++attempts < 30 && !["refunded", "charged_back", "rejected", "cancelled", "canceled"].includes(result.status) && !(result.status === "approved" && result.delivery === "sent")) timer = setTimeout(() => void load(), 5000);
       } catch (problem) {
         if (active && !controller.signal.aborted) setError(problem instanceof Error ? problem.message : "No pudimos consultar la compra.");

@@ -2,6 +2,7 @@ import "server-only";
 import { STICKER_PACKAGES } from "./catalog";
 import { checkoutPolicy } from "./checkout-policy";
 import { buyerAuthFailure, firebaseSdkFailure, FIREBASE_SETUP_ERRORS } from "./auth-errors";
+import { paymentFailureInfo, providerFailureCode } from "./payment-errors";
 
 export function adminConfigured() {
   return Boolean(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT || (process.env.FIREBASE_ADMIN_PROJECT_ID && process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY));
@@ -77,12 +78,14 @@ export function appUrl() {
 
 export async function mercadoPago(path: string, init?: RequestInit) {
   if (!process.env.MERCADOPAGO_ACCESS_TOKEN) throw new Error("setup-required");
-  const response = await fetch(`https://api.mercadopago.com${path}`, { ...init, cache: "no-store", signal: AbortSignal.timeout(12000), headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`, "Content-Type": "application/json", ...init?.headers } });
-  if (!response.ok) throw new Error("payment-provider-failed");
-  return response.json();
+  const response = await fetch(`https://api.mercadopago.com${path}`, { ...init, cache: "no-store", signal: AbortSignal.timeout(12000), headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`, "Content-Type": "application/json", ...init?.headers } }).catch(() => { throw new Error("payment-provider-failed"); });
+  if (!response.ok) throw new Error(providerFailureCode(response.status));
+  return response.json().catch(() => { throw new Error("payment-provider-failed"); });
 }
 
 export function apiError(error: unknown) {
+  const paymentFailure = paymentFailureInfo(error);
+  if (paymentFailure) return Response.json({ code: paymentFailure.code, message: paymentFailure.message }, { status: paymentFailure.status, headers: { "Cache-Control": "no-store" } });
   const code = error instanceof Error ? error.message : "unknown";
   const status = code === "unauthorized" ? 401 : code === "test-not-allowed" ? 403 : ["invalid-order", "invalid-email", "invalid-package", "conflicting-order"].includes(code) ? 400 : ["checkout-busy", "test-unavailable"].includes(code) ? 409 : code === "too-many-attempts" ? 429 : ["setup-required", "merchant-mismatch", ...FIREBASE_SETUP_ERRORS].includes(code) ? 503 : 500;
   return Response.json({ code: status === 500 ? "request-failed" : code, message: status === 401 ? "Inicia sesión para continuar." : code === "test-not-allowed" ? "Esta cuenta no tiene acceso a la prueba de pago." : code === "test-unavailable" ? "La prueba está desactivada. No se ha creado ningún pago." : code === "merchant-mismatch" ? "El Access Token no corresponde al vendedor configurado. Revisa las credenciales en Vercel." : status === 503 ? "La entrega automática aún está en preparación." : "No se pudo completar la solicitud. Inténtalo nuevamente." }, { status, headers: { "Cache-Control": "no-store" } });

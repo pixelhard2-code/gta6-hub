@@ -2,6 +2,7 @@ import { stickerCollection } from "./namespace";
 import { createHash, createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getStickerPackage, stickerCounts, totalStickers, validDeliveryEmail } from "./catalog";
+import { paymentFailureInfo } from "./payment-errors";
 
 export interface StickerOrder {
   uid: string;
@@ -32,11 +33,13 @@ export async function readBuyerStickerOrder(database: Firestore, uid: string, id
   const data = snapshot.data();
   if (!data || data.uid !== uid) return null;
   const delivery = await database.collection(stickerCollection("sticker_deliveries")).doc(id).get();
+  const failure = paymentFailureInfo(new Error(typeof data.syncErrorCode === "string" ? data.syncErrorCode : ""));
   return {
     id, packageId: data.packageId, quantity: data.quantity, email: data.email,
     amount: data.amount, currency: data.currency, status: data.status,
     delivery: delivery.data()?.status || "awaiting-payment",
     deliveryError: delivery.data()?.lastError === "delivery-failed" && delivery.data()?.status !== "sent",
+    verificationError: failure ? { code: failure.code, message: failure.message } : null,
   };
 }
 
@@ -112,7 +115,10 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
     const order = orderSnap.data() as StickerOrder;
     const pack = getStickerPackage(order.packageId);
     if (!pack || order.quantity !== pack.stickers) throw new Error("invalid-order");
-    if (String(payment.collector_id) !== merchant.collectorId || payment.live_mode !== merchant.liveMode || payment.currency_id !== order.currency || !Number.isFinite(payment.transaction_amount) || Math.abs(payment.transaction_amount - order.amount) > 0.000001) throw new Error("payment-mismatch");
+    if (String(payment.collector_id) !== merchant.collectorId) throw new Error("payment-mismatch-seller");
+    if (payment.live_mode !== merchant.liveMode) throw new Error("payment-mismatch-environment");
+    if (payment.currency_id !== order.currency) throw new Error("payment-mismatch-currency");
+    if (!Number.isFinite(payment.transaction_amount) || Math.abs(payment.transaction_amount - order.amount) > 0.000001) throw new Error("payment-mismatch-amount");
 
     const inventoryRef = database.collection(stickerCollection("sticker_collections")).doc(order.uid);
     const rankingRef = database.collection(stickerCollection("sticker_leaderboard")).doc(order.uid);

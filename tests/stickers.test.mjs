@@ -97,8 +97,20 @@ test("failed provider lookups release the lease but retain a cooldown before ret
   await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now }, merchant, unavailable, unavailable), /provider-offline/);
   const cached = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 1000 }, merchant, unavailable, unavailable);
   assert.equal(cached.status, "pending"); assert.equal(calls, 1);
+  assert.equal(cached.verificationError.code, "verification-failed");
+  assert.equal(JSON.stringify(cached).includes("provider-offline"), false);
   const saved = (await db.collection("sticker_orders").doc(item.id).get()).data();
   assert.equal(saved.syncLeaseUntil, 0);
+});
+
+test("the owner can see a safe persistent mismatch reason without private provider data", async () => {
+  const item = await order("basic"), now = Date.now();
+  await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now }, merchant, async () => ({ ...item.payment, live_mode: true }), async () => "must-not-send"), /payment-mismatch-environment/);
+  const receipt = await readBuyerStickerOrder(db, item.uid, item.id);
+  assert.equal(receipt.verificationError.code, "payment-mismatch-environment");
+  assert.equal(await readBuyerStickerOrder(db, "another-buyer", item.id), null);
+  const recovered = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now: now + 16000 }, merchant, async () => item.payment, async () => "valid-email");
+  assert.equal(recovered.verificationError, null); assert.equal(recovered.status, "approved");
 });
 
 test("test checkout requires its own switch without restricting a buyer email", () => {

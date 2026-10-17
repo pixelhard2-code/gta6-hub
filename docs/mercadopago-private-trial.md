@@ -46,6 +46,11 @@ de vendedor, referencia, importe, moneda y entorno. El payment_id del retorno es
 sólo una pista de búsqueda; no demuestra un pago. La consulta tiene un lease por orden
 y un intervalo mínimo de 15 segundos. Los GET sólo leen el estado guardado.
 Si falla el correo, la compra conserva el crédito una vez y admite reintentar el envío.
+Cerrar el recibo y volver a abrirlo desde el historial conserva la compra. Si una
+consulta falla, la orden conserva únicamente un código de error permitido, que su
+dueño puede consultar al volver a abrirla. No se guardan respuestas privadas del
+proveedor ni credenciales en estos diagnósticos. La página distingue problemas de
+autorización, operación no encontrada y diferencias de vendedor, entorno, moneda o importe.
 
 La colección de perfiles y el ranking permanecen ocultos, también en sus APIs públicas.
 Los visitantes normales conservan los enlaces manuales existentes durante la prueba.

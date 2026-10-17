@@ -5,7 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { execFileSync } from "node:child_process";
 
-function load(path, dependencies = {}, env = {}) {
+function load(path, dependencies = {}, env = {}, runtime = {}) {
   const code = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
@@ -15,6 +15,7 @@ function load(path, dependencies = {}, env = {}) {
       if (!(name in dependencies)) throw new Error("Dependency unavailable");
       return dependencies[name];
     },
+    ...runtime,
   });
   return module.exports;
 }
@@ -22,6 +23,7 @@ function load(path, dependencies = {}, env = {}) {
 const catalog = load("app/lib/stickers/catalog.ts");
 const policy = load("app/lib/stickers/checkout-policy.ts");
 const errors = load("app/lib/stickers/auth-errors.ts");
+const paymentErrors = load("app/lib/stickers/payment-errors.ts");
 const account = { project_id: "demo-auth", client_email: "server@example.invalid", private_key: "example\\nkey" };
 
 test("the actual Firebase SDK loads and rejects invalid tokens with Vercel's configured Node flag", () => {
@@ -46,16 +48,16 @@ test("the actual Firebase SDK loads and rejects invalid tokens with Vercel's con
   assert.equal(output.trim(), "sdk-ready");
 });
 
-function server({ env = {}, verify = async () => ({ uid: "buyer", email_verified: true }), sdk = true } = {}) {
+function server({ env = {}, verify = async () => ({ uid: "buyer", email_verified: true }), sdk = true, fetch = async () => { throw new Error("Unexpected network request"); } } = {}) {
   let savedAccount;
   const result = load("app/lib/stickers/server.ts", {
-    "server-only": {}, "./catalog": catalog, "./checkout-policy": policy, "./auth-errors": errors,
+    "server-only": {}, "./catalog": catalog, "./checkout-policy": policy, "./auth-errors": errors, "./payment-errors": paymentErrors,
     ...(sdk ? {
       "firebase-admin/app": { getApps: () => [], cert: (value) => { savedAccount = value; return {}; }, initializeApp: () => ({}) },
       "firebase-admin/auth": { getAuth: () => ({ verifyIdToken: verify }) },
       "firebase-admin/firestore": { getFirestore: () => ({}) },
     } : {}),
-  }, { FIREBASE_ADMIN_SERVICE_ACCOUNT: JSON.stringify(account), NEXT_PUBLIC_FIREBASE_PROJECT_ID: "demo-auth", ...env });
+  }, { FIREBASE_ADMIN_SERVICE_ACCOUNT: JSON.stringify(account), NEXT_PUBLIC_FIREBASE_PROJECT_ID: "demo-auth", ...env }, { fetch, AbortSignal });
   return { ...result, savedAccount: () => savedAccount };
 }
 
@@ -98,6 +100,19 @@ test("SDK diagnostics report only the dependency category and omit raw errors an
   assert.equal(JSON.stringify(errors.firebaseSdkDiagnostic(privatePath)).includes("private"), false);
   const unknown = errors.firebaseSdkFailure({ code: "PRIVATE-DETAIL", message: "PRIVATE-DETAIL" }, "firestore");
   assert.equal(JSON.stringify(errors.firebaseSdkDiagnostic(unknown)).includes("PRIVATE"), false);
+});
+
+test("provider failures keep actionable status codes and never return the private provider response", async () => {
+  for (const [status, expected] of [[401, "payment-provider-auth"], [403, "payment-provider-auth"], [404, "payment-provider-not-found"], [429, "payment-provider-busy"], [400, "payment-provider-request"], [503, "payment-provider-failed"]]) {
+    const instance = server({ env: { MERCADOPAGO_ACCESS_TOKEN: "local-fake-token" }, fetch: async () => Response.json({ message: "PRIVATE-PROVIDER-DATA" }, { status }) });
+    let failure;
+    try { await instance.mercadoPago("/v1/payments/123"); } catch (error) { failure = error; }
+    assert.equal(failure.message, expected);
+    const response = await instance.apiError(failure).json();
+    assert.equal(response.code, expected);
+    assert.equal(JSON.stringify(response).includes("PRIVATE-PROVIDER-DATA"), false);
+    assert.equal(JSON.stringify(response).includes("local-fake-token"), false);
+  }
 });
 
 test("checkout status separates server setup from invalid sessions and blocks anonymous trial access", async () => {

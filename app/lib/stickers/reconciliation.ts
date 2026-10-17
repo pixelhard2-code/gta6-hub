@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { applyVerifiedPayment, deliverStickerOrder, readBuyerStickerOrder, type StickerOrder, type VerifiedPayment } from "./commerce";
 import { stickerCollection } from "./namespace";
 import type { StickerEmailJob } from "./email-transport";
+import { paymentFailureInfo } from "./payment-errors";
 
 /** A return URL is only a lookup hint. Only a payment fetched from the provider can grant stickers. */
 export async function reconcileBuyerStickerOrder(database: Firestore, input: {
@@ -22,6 +23,7 @@ export async function reconcileBuyerStickerOrder(database: Firestore, input: {
   if (!claim) return null;
   if (!claim.claimed) return readBuyerStickerOrder(database, input.uid, input.orderId);
 
+  let failureCode = "";
   try {
     let payment: VerifiedPayment | null = null;
     const fetchPayment = async (id: string) => {
@@ -48,10 +50,13 @@ export async function reconcileBuyerStickerOrder(database: Firestore, input: {
         catch { /* The approved purchase and durable delivery job remain available for retry. */ }
       }
     }
+  } catch (error) {
+    failureCode = paymentFailureInfo(error)?.code || "verification-failed";
+    throw error;
   } finally {
     await database.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
-      if (snapshot.data()?.syncLeaseId === leaseId) transaction.update(ref, { syncLeaseUntil: 0 });
+      if (snapshot.data()?.syncLeaseId === leaseId) transaction.update(ref, { syncLeaseUntil: 0, syncErrorCode: failureCode });
     });
   }
   return readBuyerStickerOrder(database, input.uid, input.orderId);
