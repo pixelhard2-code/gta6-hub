@@ -17,6 +17,7 @@ const { sendStickerEmailWithConfig } = require(join(process.env.STICKER_TEST_BUI
 const { checkoutPolicy, testBuyerAccess } = require(join(process.env.STICKER_TEST_BUILD, "checkout-policy.js"));
 const { stickerCollection } = require(join(process.env.STICKER_TEST_BUILD, "namespace.js"));
 const { readBuyerStickerOrder } = require(join(process.env.STICKER_TEST_BUILD, "commerce.js"));
+const { reconcileBuyerStickerOrder } = require(join(process.env.STICKER_TEST_BUILD, "reconciliation.js"));
 const app = initializeApp({ projectId: "demo-gta6hub-follow" }, `stickers-${randomUUID()}`);
 const db = getFirestore(app);
 after(async () => { await db.terminate(); await deleteApp(app); });
@@ -28,6 +29,77 @@ async function order(packageId = "legend", uid = `buyer-${randomUUID()}`) {
   return { ...result, uid, payment };
 }
 const collection = async (uid) => (await db.collection("sticker_collections").doc(uid).get()).data();
+
+test("a missed webhook is recovered from provider data and sends the existing order once", async () => {
+  const item = await order("basic");
+  const paths = [];
+  let sends = 0;
+  const provider = async (path) => { paths.push(path); return path.startsWith("/v1/payments/search?") ? { results: [item.payment] } : item.payment; };
+  const send = async (job) => { assert.equal(job.orderId, item.id); sends++; return "recovered-email"; };
+  const now = Date.now();
+  const first = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now }, merchant, provider, send);
+  assert.equal(first.status, "approved"); assert.equal(first.delivery, "sent");
+  assert.equal(new URL("https://example.invalid" + paths[0]).searchParams.get("external_reference"), item.id);
+  assert.equal(paths[1], "/v1/payments/" + item.payment.id);
+  await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 16000 }, merchant, provider, send);
+  assert.equal(sends, 1); assert.equal((await collection(item.uid)).total, 1);
+  assert.equal(paths[2], "/v1/payments/" + item.payment.id);
+});
+
+test("concurrent receipt checks share a lease and do not duplicate provider lookups or deliveries", async () => {
+  const item = await order("basic");
+  let lookups = 0, sends = 0;
+  const provider = async () => { lookups++; return item.payment; };
+  await Promise.all(Array.from({ length: 5 }, () => reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id }, merchant, provider, async () => { sends++; return "once"; })));
+  assert.equal(lookups, 1); assert.equal(sends, 1); assert.equal((await collection(item.uid)).total, 1);
+});
+
+test("reconciliation refuses another buyer before looking up a payment or sending mail", async () => {
+  const item = await order("basic");
+  const forbidden = async () => { throw new Error("Provider must not be called"); };
+  assert.equal(await reconcileBuyerStickerOrder(db, { uid: "another-buyer", orderId: item.id }, merchant, forbidden, forbidden), null);
+  assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).status, "pending");
+});
+
+test("a forged return payment ID or a mismatched search result cannot credit a different order", async () => {
+  const owned = await order("basic"), other = await order("basic");
+  let sends = 0;
+  const provider = async (path) => path.startsWith("/v1/payments/search?") ? { results: [other.payment] } : other.payment;
+  const receipt = await reconcileBuyerStickerOrder(db, { uid: owned.uid, orderId: owned.id, paymentId: other.payment.id }, merchant, provider, async () => { sends++; return "invalid"; });
+  assert.equal(receipt.status, "pending"); assert.equal(receipt.delivery, "awaiting-payment");
+  assert.equal((await readBuyerStickerOrder(db, other.uid, other.id)).status, "pending");
+  assert.equal(sends, 0); assert.equal(await collection(owned.uid), undefined); assert.equal(await collection(other.uid), undefined);
+});
+
+test("recovery verifies seller, environment, currency and amount using the full provider payment", async () => {
+  for (const mismatch of [{ collector_id: "another-seller" }, { live_mode: true }, { currency_id: "USD" }, { transaction_amount: 1 }]) {
+    const item = await order("basic");
+    await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id }, merchant, async () => ({ ...item.payment, ...mismatch }), async () => { throw new Error("Must not send"); }), /payment-mismatch/);
+    assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).status, "pending");
+    assert.equal(await collection(item.uid), undefined);
+  }
+});
+
+test("a recovered payment stays approved when email fails and retries without another credit", async () => {
+  const item = await order("basic"), now = Date.now();
+  const provider = async () => item.payment;
+  const failed = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now }, merchant, provider, async () => { throw new Error("simulated-email-outage"); });
+  assert.equal(failed.status, "approved"); assert.equal(failed.delivery, "pending"); assert.equal(failed.deliveryError, true);
+  const recovered = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 16000 }, merchant, provider, async () => "retried-email");
+  assert.equal(recovered.delivery, "sent"); assert.equal(recovered.deliveryError, false);
+  assert.equal((await collection(item.uid)).total, 1);
+});
+
+test("failed provider lookups release the lease but retain a cooldown before retry", async () => {
+  const item = await order("basic"), now = Date.now();
+  let calls = 0;
+  const unavailable = async () => { calls++; throw new Error("provider-offline"); };
+  await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now }, merchant, unavailable, unavailable), /provider-offline/);
+  const cached = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 1000 }, merchant, unavailable, unavailable);
+  assert.equal(cached.status, "pending"); assert.equal(calls, 1);
+  const saved = (await db.collection("sticker_orders").doc(item.id).get()).data();
+  assert.equal(saved.syncLeaseUntil, 0);
+});
 
 test("test checkout requires its own switch without restricting a buyer email", () => {
   const env = { MERCADOPAGO_MODE: "test", STICKER_SALES_ENABLED: "true" };

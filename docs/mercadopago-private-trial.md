@@ -37,8 +37,14 @@ sesión en Mercado Pago con su cuenta compradora de prueba. El ZIP se entrega al
 correo real guardado en la orden.
 
 Mercado Pago vuelve a /compra?orden=... Esta página consulta una API autenticada:
-no da un pago por aprobado basándose en la URL de retorno. Sólo el webhook firmado
-que consulta y valida el pago en Mercado Pago acredita la compra y encola el ZIP.
+no da un pago por aprobado basándose en la URL de retorno. El webhook firmado
+consulta y valida el pago en Mercado Pago para acreditar la compra y encolar el ZIP.
+Si la notificación se retrasa o no se procesa, la página solicita por POST una
+comprobación autenticada de su propia orden: el servidor consulta el pago o lo busca
+por external_reference, vuelve a obtener su detalle y aplica las mismas validaciones
+de vendedor, referencia, importe, moneda y entorno. El payment_id del retorno es
+sólo una pista de búsqueda; no demuestra un pago. La consulta tiene un lease por orden
+y un intervalo mínimo de 15 segundos. Los GET sólo leen el estado guardado.
 Si falla el correo, la compra conserva el crédito una vez y admite reintentar el envío.
 
 La colección de perfiles y el ranking permanecen ocultos, también en sus APIs públicas.

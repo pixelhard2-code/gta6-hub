@@ -36,6 +36,7 @@ export async function readBuyerStickerOrder(database: Firestore, uid: string, id
     id, packageId: data.packageId, quantity: data.quantity, email: data.email,
     amount: data.amount, currency: data.currency, status: data.status,
     delivery: delivery.data()?.status || "awaiting-payment",
+    deliveryError: delivery.data()?.lastError === "delivery-failed" && delivery.data()?.status !== "sent",
   };
 }
 

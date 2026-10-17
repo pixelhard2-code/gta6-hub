@@ -8,12 +8,13 @@ import styles from "./Hub.module.css";
 
 interface Purchase {
   id: string; quantity: number; email: string; amount: number; currency: string;
-  status: string; delivery: string; testMode: boolean;
+  status: string; delivery: string; testMode: boolean; deliveryError?: boolean;
 }
 
 export default function PurchaseStatus() {
   const { user, loading } = useCurrentUserProfile();
   const [orderId, setOrderId] = useState("");
+  const [paymentId, setPaymentId] = useState("");
   const [record, setPurchase] = useState<(Purchase & { buyerUid: string }) | null>(null);
   const purchase = user && record?.buyerUid === user.uid && record.id === orderId ? record : null;
   const [error, setError] = useState("");
@@ -21,7 +22,10 @@ export default function PurchaseStatus() {
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("orden") || "";
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("orden") || "";
+    const paymentHint = params.get("payment_id") || params.get("collection_id") || "";
+    if (/^\d{1,32}$/.test(paymentHint)) setPaymentId(paymentHint);
     if (/^lc_[a-f0-9]{32}$/.test(id)) setOrderId(id);
     else setError("El enlace de compra no es válido.");
   }, []);
@@ -36,11 +40,26 @@ export default function PurchaseStatus() {
       if (running || !active) return;
       running = true;
       try {
-        const response = await fetch("/api/stickers/order/" + orderId, { headers: { Authorization: "Bearer " + await user.getIdToken() }, cache: "no-store", signal: controller.signal });
+        const token = await user.getIdToken();
+        const response = await fetch("/api/stickers/order/" + orderId, { headers: { Authorization: "Bearer " + token }, cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error(response.status === 404 ? "No encontramos esta compra en tu cuenta." : "No pudimos consultar la compra.");
-        const result = await response.json() as Purchase;
+        let result = await response.json() as Purchase;
+        let syncError = "";
+        if (!["refunded", "charged_back"].includes(result.status) && !(result.status === "approved" && result.delivery === "sent")) {
+          try {
+            const sync = await fetch("/api/stickers/order/" + orderId, {
+              method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+              body: JSON.stringify({ ...(paymentId ? { paymentId } : {}) }), signal: controller.signal,
+            });
+            if (!sync.ok) throw new Error("sync-failed");
+            result = await sync.json() as Purchase;
+          } catch {
+            if (controller.signal.aborted) return;
+            syncError = "No pudimos actualizar la confirmación en este momento. Puedes volver a intentarlo con Actualizar estado.";
+          }
+        }
         if (!active) return;
-        setPurchase({ ...result, buyerUid: user.uid }); setError("");
+        setPurchase({ ...result, buyerUid: user.uid }); setError(syncError);
         if (++attempts < 30 && !["refunded", "charged_back", "rejected", "cancelled", "canceled"].includes(result.status) && !(result.status === "approved" && result.delivery === "sent")) timer = setTimeout(() => void load(), 5000);
       } catch (problem) {
         if (active && !controller.signal.aborted) setError(problem instanceof Error ? problem.message : "No pudimos consultar la compra.");
@@ -48,7 +67,7 @@ export default function PurchaseStatus() {
     };
     void load();
     return () => { active = false; controller.abort(); if (timer) clearTimeout(timer); };
-  }, [user, orderId, revision]);
+  }, [user, orderId, paymentId, revision]);
   async function retryDelivery() {
     if (!user || busy) return;
     setBusy(true); setError("");
@@ -68,6 +87,7 @@ export default function PurchaseStatus() {
       <h2 className="mb-3 text-xl font-bold">{purchase.status === "approved" ? "Pago confirmado" : ["refunded", "charged_back"].includes(purchase.status) ? "Compra reembolsada" : ["rejected", "cancelled", "canceled"].includes(purchase.status) ? "El pago no fue aprobado" : "Esperando confirmación de Mercado Pago"}</h2>
       <p>{purchase.quantity} {purchase.quantity === 1 ? "sticker digital" : "stickers digitales"} · {new Intl.NumberFormat("es-CL", { style: "currency", currency: purchase.currency }).format(purchase.amount)} {purchase.currency}</p>
       {purchase.status === "approved" && <p className="mt-3">{purchase.delivery === "sent" ? "Enviamos el ZIP de tus stickers a " : "Estamos preparando el envío de tus stickers a "}<strong>{purchase.email}</strong>.{purchase.delivery === "sent" && " Revisa también la carpeta de spam."}</p>}
+      {purchase.status === "approved" && purchase.deliveryError && <p role="alert" className="mt-3">Tu pago está confirmado. El envío del correo falló; puedes reintentarlo sin volver a comprar.</p>}
       {purchase.status === "approved" && purchase.delivery !== "sent" && <button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void retryDelivery()}>{busy ? "Reintentando…" : "Reintentar envío"}</button>}
       {!["approved", "refunded", "charged_back", "rejected", "cancelled", "canceled"].includes(purchase.status) && <p className="mt-3">La página se actualiza mientras Mercado Pago confirma el resultado. Volver del checkout por sí solo no confirma el pago.</p>}
     </>}
