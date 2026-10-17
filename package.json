@@ -10,7 +10,8 @@
     "test:profiles": "node scripts/test-profiles.mjs",
     "test:stickers": "node scripts/test-stickers.mjs",
     "test:purchase-requests": "node scripts/test-purchase-requests.mjs",
-    "test:rules": "node scripts/test-firestore-rules.mjs"
+    "test:rules": "node scripts/test-firestore-rules.mjs",
+    "test:giveaway-milestone": "node scripts/test-giveaway-milestone.mjs"
   },
   "engines": { "node": ">=22" },
   "dependencies": {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PrizeArtwork, STICKER_PACKAGES } from "@/app/components/GiveawayCard";
 import StickerCheckout from "@/app/components/StickerCheckout";
 import StickerCollection from "@/app/components/StickerCollection";
+import GiveawayMilestone from "@/app/components/giveaway-milestone/GiveawayMilestone";
 import { STICKER_SOCIAL_VISIBLE } from "@/app/lib/stickers/visibility";
 import styles from "@/app/components/Hub.module.css";
 
@@ -159,6 +160,8 @@ export default function SorteosPage() {
             </div>
           </section>
         </div>
+
+        <GiveawayMilestone />
 
         <div className="mt-8"><StickerCollection preview /></div>
 

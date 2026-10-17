@@ -1,0 +1,54 @@
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 36px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 32px;
+  padding: 30px;
+  border: 1px solid #463343;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 0 0, #332035 0, transparent 65%), #15141f;
+  color: #f8fafc;
+}
+.card::before { content: ""; position: absolute; top: 0; left: 30px; width: 62px; height: 2px; background: #f3b5a7; }
+.intro, .goal { min-width: 0; }
+.eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: #f3b5a7; font: 10px/1.5 monospace; letter-spacing: .12em; }
+.eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: #f3b5a7; }
+.intro h2 { margin: 0; font-size: clamp(22px, 3vw, 29px); font-weight: 800; line-height: 1.16; letter-spacing: -.04em; }
+.intro h2 em { color: #f1adc8; font-style: normal; }
+.description { max-width: 390px; margin: 14px 0 0; font-size: 13px; line-height: 1.75; color: #b9b4c3; }
+.description strong { color: #eee5ee; font-weight: 600; }
+.cta { display: inline-flex; align-items: center; gap: 20px; min-height: 44px; margin-top: 10px; color: #f3b5a7; font-size: 12px; font-weight: 700; text-decoration: none; }
+.cta:hover { color: #ffe1d9; }
+.cta:focus-visible { outline: 2px solid #f3b5a7; outline-offset: 4px; border-radius: 4px; }
+.goal { align-self: center; }
+.prizes { display: grid; grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr); gap: 16px; align-items: center; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid #35303f; }
+.label { color: #b0a8b9; font: 9px/1.5 monospace; letter-spacing: .08em; }
+.prizes p { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin: 5px 0 0; }
+.prizes strong { font-size: 36px; line-height: 1; font-weight: 800; letter-spacing: -.05em; }
+.prizes p span { color: #d9d3df; font-size: 11px; font-weight: 600; }
+.arrow { color: #88778f; font-size: 22px; }
+.nextPrize strong, .nextPrize .label { color: #f3b5a7; }
+.progressHeading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 10px; font-size: 11px; line-height: 1.5; color: #b9b4c3; }
+.progressHeading strong { color: #f4eaf0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.progress, .emptyTrack { display: block; width: 100%; height: 10px; overflow: hidden; border: none; border-radius: 20px; background: #2b2634; }
+.progress { appearance: none; -webkit-appearance: none; }
+.progress::-webkit-progress-bar { border-radius: 20px; background: #2b2634; }
+.progress::-webkit-progress-value { border-radius: 20px; background: linear-gradient(90deg, #c97bb0, #f3b5a7); }
+.progress::-moz-progress-bar { border-radius: 20px; background: linear-gradient(90deg, #c97bb0, #f3b5a7); }
+.goalNote { margin: 10px 0 0; font-size: 12px; line-height: 1.7; color: #b9b4c3; }
+.goalNote strong { font-weight: 600; color: #f3b5a7; }
+.update { margin: 8px 0 0; color: #a49bad; font-size: 10px; line-height: 1.7; }
+@media (max-width: 700px) {
+  .card { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 22px; margin-top: 24px; }
+  .card::before { left: 22px; }
+  .description { max-width: none; }
+  .prizes { padding-bottom: 16px; margin-bottom: 16px; }
+}
+@media (max-width: 380px) {
+  .card { padding: 18px; }
+  .card::before { left: 18px; }
+  .prizes { gap: 10px; }
+  .prizes strong { font-size: 30px; }
+}
