@@ -54,6 +54,8 @@ Si tienes un `match /{document=**}` con acceso amplio, debes excluir estas colec
 
 ## Compras, colección y ranking
 
+El checkout exige nombre, apellido y teléfono además del correo. Los números únicos de cada sticker se asignan al aprobarse el pago y quedan en el correo, el ZIP y el comprobante privado. Consulta [la numeración y búsqueda desde Firebase](./sticker-numbering.md); no hay un panel administrativo en la web.
+
 `sticker_orders` conserva usuario, correo, pack, precio y moneda antes del pago. `sticker_payments` evita duplicar la misma transacción. En una única transacción de Firestore se actualizan la colección, el ranking, el estado de compra y la cola de correo. La cola conserva los fallos y permite reintentar sin sumar stickers otra vez.
 
 El pack Básico entrega Palmeras de Vice. El Doble entrega Palmeras de Vice y Night Ride. El Leyenda entrega los cinco diseños. Comprar varias veces suma copias: dos packs Básicos son dos stickers y dos participaciones, aunque el diseño sea el mismo. El ranking cuenta copias confirmadas, no reputación ni seguidores. Los saldos antiguos de `users.tickets` no se convierten en compras de stickers sin un pago comprobado.

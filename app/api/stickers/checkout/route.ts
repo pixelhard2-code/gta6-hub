@@ -4,6 +4,7 @@ import { getStickerPackage, STICKER_PACKAGES, validDeliveryEmail } from "@/app/l
 import { createStickerOrder, prepareStickerCheckout } from "@/app/lib/stickers/commerce";
 import { testBuyerAccess } from "@/app/lib/stickers/checkout-policy";
 import { checkoutAuthAccess, firebaseSdkDiagnostic } from "@/app/lib/stickers/auth-errors";
+import { readBuyerContact } from "@/app/lib/stickers/contact";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,10 +32,12 @@ export async function POST(request: Request) {
     const buyer = await authenticatedBuyer(request);
     if (!buyer.email_verified) throw new Error("unauthorized");
     const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid-order");
     if (body.expectedMode === "test" && config.liveMode) throw new Error("test-unavailable");
     const pack = getStickerPackage(body.packageId);
     if (!pack) throw new Error("invalid-package");
     if (!validDeliveryEmail(body.email)) throw new Error("invalid-email");
+    const buyerContact = readBuyerContact(body.buyerContact);
     const { db } = stickerAdmin();
     await verifiedStickerMerchant(config);
     const limitRef = db.collection(stickerCollection("sticker_checkout_limits")).doc(buyer.uid);
@@ -46,7 +49,7 @@ export async function POST(request: Request) {
       if (count >= 6) throw new Error("too-many-attempts");
       transaction.set(limitRef, { start: sameWindow ? snap.data()!.start : now, count: count + 1 });
     });
-    const { id, order } = await createStickerOrder(db, { uid: buyer.uid, email: body.email, packageId: pack.id, attemptId: body.attemptId, amount: config.amounts[pack.id], currency: config.currency });
+    const { id, order } = await createStickerOrder(db, { uid: buyer.uid, email: body.email, buyerContact, packageId: pack.id, attemptId: body.attemptId, amount: config.amounts[pack.id], currency: config.currency });
     if (order.status === "approved") return Response.json({ orderId: id, url: `${appUrl()}/compra?orden=${id}` });
     const base = appUrl();
     const checkoutUrl = await prepareStickerCheckout(db, id, async (savedOrder) => {

@@ -22,15 +22,96 @@ const app = initializeApp({ projectId: "demo-gta6hub-follow" }, `stickers-${rand
 const db = getFirestore(app);
 after(async () => { await db.terminate(); await deleteApp(app); });
 const { verifyMerchantAccount, paymentEnvironmentMatches } = require(join(process.env.STICKER_TEST_BUILD, "merchant.js"));
+const buyerContact = { firstName: "María José", lastName: "Garrido Pérez", phone: "+56912345678" };
 const merchant = verifyMerchantAccount({ id: 12345, tags: ["test_user"] }, { collectorId: "12345", liveMode: false });
 const resolveMerchant = async () => merchant;
 let sequence = 70000;
 async function order(packageId = "legend", uid = `buyer-${randomUUID()}`) {
-  const result = await createStickerOrder(db, { uid, packageId, email: "buyer@example.invalid", amount: packageId === "legend" ? 10000 : packageId === "double" ? 5000 : 3000, currency: "CLP", attemptId: randomUUID() });
+  const result = await createStickerOrder(db, { uid, packageId, buyerContact, email: "buyer@example.invalid", amount: packageId === "legend" ? 10000 : packageId === "double" ? 5000 : 3000, currency: "CLP", attemptId: randomUUID() });
   const payment = { id: String(++sequence), external_reference: result.id, status: "approved", transaction_amount: result.order.amount, transaction_amount_refunded: 0, currency_id: "CLP", collector_id: "12345", live_mode: false };
   return { ...result, uid, payment };
 }
 const collection = async (uid) => (await db.collection("sticker_collections").doc(uid).get()).data();
+const { readBuyerContact } = require(join(process.env.STICKER_TEST_BUILD, "contact.js"));
+const { formatStickerNumber } = require(join(process.env.STICKER_TEST_BUILD, "entry-numbers.js"));
+
+test("contact is required, normalized and immutable before any payment is created", async () => {
+  assert.deepEqual(readBuyerContact({ firstName: "  María  José ", lastName: " O’Neill ", phone: "9 1234-5678" }), { firstName: "María José", lastName: "O’Neill", phone: "+56912345678" });
+  assert.equal(readBuyerContact({ ...buyerContact, phone: "+1 (415) 555-1234" }).phone, "+14155551234");
+  for (const value of [null, {}, { ...buyerContact, firstName: "<script>" }, { ...buyerContact, lastName: "" }, { ...buyerContact, phone: "123" }, { ...buyerContact, phone: "+56912345678 ext2" }]) assert.throws(() => readBuyerContact(value), /invalid-contact/);
+  const input = { uid: "contact-" + randomUUID(), packageId: "basic", email: "buyer@example.invalid", amount: 3000, currency: "CLP", attemptId: randomUUID(), buyerContact };
+  await assert.rejects(createStickerOrder(db, { ...input, buyerContact: undefined }), /invalid-contact/);
+  const created = await createStickerOrder(db, { ...input, entryNumbers: [999999] });
+  const saved = (await db.collection("sticker_orders").doc(created.id).get()).data();
+  assert.deepEqual(saved.buyerContact, buyerContact); assert.equal(saved.status, "pending"); assert.equal(saved.entryNumbers, undefined);
+  await assert.rejects(createStickerOrder(db, { ...input, buyerContact: { ...buyerContact, phone: "+56987654321" } }), /conflicting-order/);
+  assert.equal((await db.collection("users").doc(input.uid).get()).exists, false);
+});
+
+test("parallel approved packs allocate distinct consecutive numbers and retries keep them", async () => {
+  const before = Number((await db.collection("sticker_entry_counters").doc("current").get()).data()?.lastNumber || 0);
+  const items = [await order("basic"), await order("double"), await order("legend")];
+  await Promise.all(items.map(item => applyVerifiedPayment(db, item.payment, merchant)));
+  const all = [];
+  for (const item of items) {
+    const receipt = await readBuyerStickerOrder(db, item.uid, item.id);
+    assert.equal(receipt.entryNumbers.length, item.order.quantity);
+    assert.equal("buyerContact" in receipt, false);
+    await applyVerifiedPayment(db, item.payment, merchant);
+    assert.deepEqual((await readBuyerStickerOrder(db, item.uid, item.id)).entryNumbers, receipt.entryNumbers);
+    const pack = STICKER_PACKAGES.find(pack => pack.id === item.order.packageId);
+    for (let index = 0; index < receipt.entryNumbers.length; index++) {
+      const number = receipt.entryNumbers[index]; all.push(number);
+      const entry = (await db.collection("sticker_entries").doc(formatStickerNumber(number)).get()).data();
+      assert.equal(entry.orderId, item.id); assert.equal(entry.uid, item.uid); assert.equal(entry.paymentId, item.payment.id);
+      assert.equal(entry.stickerId, pack.stickerIds[index]); assert.equal(entry.status, "active");
+      assert.equal("email" in entry, false); assert.equal("phone" in entry, false);
+    }
+  }
+  assert.equal(new Set(all).size, 8);
+  assert.deepEqual(all.sort((a,b) => a-b), Array.from({ length: 8 }, (_, index) => before + index + 1));
+  assert.equal((await db.collection("sticker_entry_counters").doc("current").get()).data().lastNumber, before + 8);
+});
+
+test("refunds invalidate numbers without recycling them or reviving an old approved snapshot", async () => {
+  const item = await order("double");
+  await applyVerifiedPayment(db, item.payment, merchant);
+  const numbers = (await readBuyerStickerOrder(db, item.uid, item.id)).entryNumbers;
+  await applyVerifiedPayment(db, { ...item.payment, transaction_amount_refunded: 1 }, merchant);
+  await applyVerifiedPayment(db, item.payment, merchant);
+  const receipt = await readBuyerStickerOrder(db, item.uid, item.id);
+  assert.equal(receipt.status, "refunded"); assert.deepEqual(receipt.entryNumbers, numbers);
+  for (const number of numbers) assert.equal((await db.collection("sticker_entries").doc(formatStickerNumber(number)).get()).data().status, "void");
+  const next = await order("basic"); await applyVerifiedPayment(db, next.payment, merchant);
+  assert.ok((await readBuyerStickerOrder(db, next.uid, next.id)).entryNumbers[0] > Math.max(...numbers));
+});
+
+test("legacy paid orders receive numbers without another credit or a second email", async () => {
+  const item = await order("basic");
+  await db.collection("sticker_orders").doc(item.id).update({ status: "approved", paymentId: item.payment.id });
+  await db.collection("sticker_payments").doc(item.payment.id).set({ orderId: item.id, uid: item.uid, status: "approved", credited: true });
+  await db.collection("sticker_collections").doc(item.uid).set({ counts: { "vice-palm": 1 }, total: 1 });
+  await db.collection("sticker_deliveries").doc(item.id).set({ status: "sent", orderId: item.id, email: item.order.email, packageId: "basic", quantity: 1 });
+  await applyVerifiedPayment(db, item.payment, merchant);
+  assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).entryNumbers.length, 1);
+  assert.equal((await collection(item.uid)).total, 1);
+  assert.equal(await deliverStickerOrder(db, item.id, async () => { throw new Error("Must not resend"); }), false);
+});
+
+test("a corrupted counter cannot overwrite an existing number or partially credit a purchase", async () => {
+  const item = await order("basic");
+  const counter = db.collection("sticker_entry_counters").doc("current");
+  const before = (await counter.get()).data().lastNumber;
+  const collision = db.collection("sticker_entries").doc(formatStickerNumber(before + 1));
+  await collision.set({ orderId: "protected-original" });
+  try {
+    await assert.rejects(applyVerifiedPayment(db, item.payment, merchant), /entry-number-collision/);
+    assert.equal((await collision.get()).data().orderId, "protected-original");
+    assert.equal((await counter.get()).data().lastNumber, before);
+    assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).status, "pending");
+    assert.equal(await collection(item.uid), undefined);
+  } finally { await collision.delete(); }
+});
 
 test("merchant identity must match both the configured seller and the store mode", () => {
   const expected = { collectorId: "12345", liveMode: false };
@@ -200,7 +281,7 @@ test("test activation cannot enable real sales and unknown modes fail closed", (
 test("same buyer and attempt stay isolated across simulated and real purchase ledgers", async () => {
   const previous = process.env.MERCADOPAGO_MODE;
   const uid = "isolated-" + randomUUID(), attemptId = randomUUID();
-  const input = { uid, attemptId, email: "buyer@example.invalid", currency: "CLP" };
+  const input = { uid, attemptId, buyerContact, email: "buyer@example.invalid", currency: "CLP" };
   try {
     process.env.MERCADOPAGO_MODE = "production";
     const real = await createStickerOrder(db, { ...input, packageId: "basic", amount: 3000 });
@@ -225,7 +306,7 @@ test("same buyer and attempt stay isolated across simulated and real purchase le
 });
 
 test("trial emails use a separate idempotency key and do not promise real entries", async () => {
-  const job = { orderId: "lc_" + "a".repeat(32), email: "buyer@example.invalid", packageId: "basic", quantity: 1 };
+  const job = { orderId: "lc_" + "a".repeat(32), email: "buyer@example.invalid", packageId: "basic", quantity: 1, entryNumbers: [1] };
   let captured;
   await sendStickerEmailWithConfig(job, { apiKey: "fake-local", from: "trial@example.invalid", appUrl: "https://example.invalid", testMode: true }, async (_url, request) => {
     captured = request;
@@ -235,6 +316,8 @@ test("trial emails use a separate idempotency key and do not promise real entrie
   const payload = JSON.parse(captured.body);
   assert.match(payload.text, /compra simulada no participa/);
   assert.match(payload.text, /\/compra\?orden=lc_/);
+  assert.match(payload.text, /PRUEBA-000001/);
+  assert.match(Buffer.from(unzipSync(Buffer.from(payload.attachments[0].content, "base64"))["MIS_NUMEROS.txt"]).toString(), /no participan en el sorteo real/);
   assert.equal(payload.attachments.length, 1);
 });
 
@@ -280,7 +363,7 @@ test("recipient validation rejects header injection and invalid addresses", () =
   for (const email of ["", "buyer", "buyer@example.invalid\nBCC:other@example.invalid", "a@example.invalid,b@example.invalid"]) assert.equal(validDeliveryEmail(email), false);
 });
 test("a checkout retry keeps the same order and cannot change its owner or contents", async () => {
-  const input = { uid: `buyer-${randomUUID()}`, packageId: "basic", email: "buyer@example.invalid", amount: 3000, currency: "CLP", attemptId: randomUUID() };
+  const input = { uid: `buyer-${randomUUID()}`, buyerContact, packageId: "basic", email: "buyer@example.invalid", amount: 3000, currency: "CLP", attemptId: randomUUID() };
   const first = await createStickerOrder(db, input), second = await createStickerOrder(db, input);
   assert.equal(first.id, second.id);
   await assert.rejects(createStickerOrder(db, { ...input, packageId: "legend" }), /conflicting-order/);
@@ -379,7 +462,7 @@ test("one Mercado Pago operation cannot be reassigned and credited to two buyers
 });
 test("email retries send the same purchased archive, recipient and idempotency key", async () => {
   const item=await order("double");
-  const job={orderId:item.id,email:item.order.email,packageId:"double",quantity:2};
+  const job={orderId:item.id,email:item.order.email,packageId:"double",quantity:2,entryNumbers:[1001,1002]};
   const config={apiKey:"simulated-key",from:"Shop <shop@example.invalid>",appUrl:"https://example.invalid/"};
   const requests=[];
   const send=async(url,request)=>{assert.equal(url,"https://api.resend.com/emails");requests.push(request);return Response.json({id:"simulated-email"});};
@@ -391,8 +474,11 @@ test("email retries send the same purchased archive, recipient and idempotency k
   assert.deepEqual(mail.to,[job.email]);
   assert.ok(mail.text.includes("https://example.invalid/compra?orden=" + item.id));
   assert.equal(mail.attachments[0].filename,"leonidacrew-double.zip");
+  assert.match(mail.text, /001001, 001002/);
+  assert.match(Buffer.from(unzipSync(Buffer.from(mail.attachments[0].content,"base64"))["MIS_NUMEROS.txt"]).toString(), /001001\n001002/);
   assert.deepEqual(Object.keys(unzipSync(Buffer.from(mail.attachments[0].content,"base64"))).filter(name=>name.endsWith(".png")),["vice-palm.png","night-ride.png"]);
   await assert.rejects(sendStickerEmailWithConfig(job,config,async()=>Response.json({error:"simulated"},{status:500})),/email-provider-failed/);
+  await assert.rejects(sendStickerEmailWithConfig({...job,entryNumbers:[1001,1001]},config,async()=>{throw new Error("Must not send invalid numbers");}),/invalid-entry-allocation/);
 });
 test("each download contains only the purchased designs and valid transparent PNG files", async () => {
   for(const pack of STICKER_PACKAGES){
@@ -416,7 +502,7 @@ test("browser clients cannot write paid balances, ranking or orders", async () =
   const client=firestore.getFirestore(clientApp);
   const [host,port]=process.env.FIRESTORE_EMULATOR_HOST.split(":");
   firestore.connectFirestoreEmulator(client,host,Number(port));
-  for(const name of ["sticker_collections","sticker_leaderboard","sticker_orders"]){
+  for(const name of ["sticker_collections","sticker_leaderboard","sticker_orders","sticker_entries","sticker_entry_counters","sticker_test_entries","sticker_test_entry_counters"]){
     await assert.rejects(firestore.setDoc(firestore.doc(client,name,"fake"),{total:99999}),{code:"permission-denied"});
   }
   await firestore.terminate(client);await firebase.deleteApp(clientApp);

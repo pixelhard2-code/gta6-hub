@@ -25,6 +25,7 @@ const policy = load("app/lib/stickers/checkout-policy.ts");
 const errors = load("app/lib/stickers/auth-errors.ts");
 const paymentErrors = load("app/lib/stickers/payment-errors.ts");
 const merchantPolicy = load("app/lib/stickers/merchant.ts");
+const contactPolicy = load("app/lib/stickers/contact.ts");
 const account = { project_id: "demo-auth", client_email: "server@example.invalid", private_key: "example\\nkey" };
 
 test("the actual Firebase SDK loads and rejects invalid tokens with Vercel's configured Node flag", () => {
@@ -130,12 +131,59 @@ test("seller verification uses the authenticated provider response rather than p
   }
 });
 
+test("checkout rejects missing or invalid contact before provider access or database writes", async () => {
+  const never = () => { throw new Error("Must not access provider or write an order"); };
+  const route = load("app/api/stickers/checkout/route.ts", {
+    "@/app/lib/stickers/namespace": {}, "@/app/lib/stickers/commerce": { createStickerOrder: never },
+    "@/app/lib/stickers/catalog": catalog, "@/app/lib/stickers/checkout-policy": policy,
+    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy,
+    "@/app/lib/stickers/server": {
+      commerceConfig: () => ({ ready: true, liveMode: true }),
+      authenticatedBuyer: async () => ({ uid: "buyer", email_verified: true }),
+      stickerAdmin: never, verifiedStickerMerchant: never,
+      apiError: error => Response.json({ code: error.message }, { status: paymentErrors.paymentFailureInfo(error)?.status || 500 }),
+    },
+  });
+  for (const buyerContact of [undefined, {}, { firstName: "Carlos", lastName: "Garrido", phone: "123" }]) {
+    const response = await route.POST(new Request("https://example.invalid/api/stickers/checkout", { method: "POST", body: JSON.stringify({ packageId: "basic", email: "buyer@example.invalid", buyerContact }) }));
+    assert.equal(response.status, 400); assert.equal((await response.json()).code, "invalid-contact");
+  }
+});
+
+test("checkout saves normalized contact and ignores forged buyer IDs or entry numbers", async () => {
+  let saved, preference;
+  const buyerContact = { firstName: " María ", lastName: " Garrido ", phone: "9 1234 5678" };
+  const route = load("app/api/stickers/checkout/route.ts", {
+    "@/app/lib/stickers/namespace": { stickerCollection: value => value },
+    "@/app/lib/stickers/commerce": {
+      createStickerOrder: async (_db, input) => { saved = input; return { id: "lc_" + "a".repeat(32), order: { ...input, status: "pending" } }; },
+      prepareStickerCheckout: async (_db, _id, prepare) => (await prepare(saved)).checkoutUrl,
+    },
+    "@/app/lib/stickers/catalog": catalog, "@/app/lib/stickers/checkout-policy": policy,
+    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy,
+    "@/app/lib/stickers/server": {
+      commerceConfig: () => ({ ready: true, liveMode: true, currency: "CLP", amounts: { basic: 3000 } }),
+      authenticatedBuyer: async () => ({ uid: "authenticated-buyer", email_verified: true }),
+      stickerAdmin: () => ({ db: { collection: () => ({ doc: () => ({}) }), runTransaction: async run => run({ get: async () => ({ data: () => undefined }), set: () => {} }) } }),
+      verifiedStickerMerchant: async () => ({}), appUrl: () => "https://example.invalid",
+      mercadoPago: async (_path, request) => { preference = JSON.parse(request.body); return { id: "pref", init_point: "https://www.mercadopago.cl/checkout" }; },
+      apiError: error => { throw error; },
+    },
+  }, {}, { URL, Date });
+  const response = await route.POST(new Request("https://example.invalid/api/stickers/checkout", { method: "POST", body: JSON.stringify({ uid: "forged", packageId: "basic", email: "buyer@example.invalid", buyerContact, entryNumbers: [999999] }) }));
+  assert.equal(response.status, 200); assert.equal(saved.uid, "authenticated-buyer");
+  assert.equal(JSON.stringify(saved.buyerContact), JSON.stringify({ firstName: "María", lastName: "Garrido", phone: "+56912345678" }));
+  assert.equal("entryNumbers" in saved, false);
+  assert.equal(JSON.stringify(preference).includes("Garrido"), false);
+  assert.equal(JSON.stringify(preference).includes("912345678"), false);
+});
+
 test("checkout status separates server setup from invalid sessions and blocks anonymous trial access", async () => {
   let failure, buyer = { uid: "buyer", email_verified: true };
   const route = load("app/api/stickers/checkout/route.ts", {
     "@/app/lib/stickers/namespace": {}, "@/app/lib/stickers/commerce": {},
     "@/app/lib/stickers/catalog": catalog, "@/app/lib/stickers/checkout-policy": policy,
-    "@/app/lib/stickers/auth-errors": errors,
+    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy,
     "@/app/lib/stickers/server": {
       commerceConfig: () => ({ ready: true, liveMode: false, currency: "CLP", amounts: { basic: 3000, double: 5000, legend: 10000 } }),
       stickerAdmin: () => { if (failure) throw new Error(failure); return {}; },

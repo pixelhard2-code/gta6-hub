@@ -28,5 +28,9 @@
 .checkoutEmail { display:flex; flex-direction:column; gap:7px; margin:16px 0; color:#c8bdcf; font-size:12px; }
 .checkoutEmail input { background:#141520; border:1px solid #55405f; padding:12px; border-radius:8px; color:#f5f1f4; width:100%; }
 .checkoutEmail input:focus { outline:2px solid #ecacc9; outline-offset:2px; }
+.contactFields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
+.contactFields .checkoutEmail { margin:0; min-width:0; }
+.contactFields .checkoutEmail:last-child { grid-column:1/-1; }
 .direct { display:inline-block; margin-top:10px; color:#ecacc9; font-size:12px; text-decoration:underline; }
 @media(max-width:700px) { .card { padding:18px; } .grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .leaders { grid-template-columns:1fr; } }
+@media(max-width:480px) { .contactFields { grid-template-columns:1fr; } }

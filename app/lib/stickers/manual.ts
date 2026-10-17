@@ -2,16 +2,20 @@ import { stickerCollection } from "./namespace";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getStickerPackage, stickerCounts, totalStickers, validDeliveryEmail } from "./catalog";
+import { planStickerEntries } from "./entries";
+import { readBuyerContact, type BuyerContact } from "./contact";
 
 /** Private merchant tool only: check the real payment in the seller dashboard first. */
 export async function creditDashboardReviewedPurchase(database: Firestore, input: {
   paymentId: string; uid: string; packageId: string; email: string;
   amount: number; currency: string; reviewer: string; confirmedInDashboard: boolean;
+  buyerContact?: BuyerContact;
 }) {
   const pack = getStickerPackage(input.packageId);
   if (input.confirmedInDashboard !== true || !pack || !/^[1-9]\d*$/.test(input.paymentId) || !/^[\w-]{1,128}$/.test(input.uid) || !validDeliveryEmail(input.email) || !Number.isFinite(input.amount) || input.amount <= 0 || !["CLP", "USD"].includes(input.currency) || (input.currency === "CLP" && !Number.isInteger(input.amount)) || !input.reviewer.trim() || input.reviewer.length > 80) throw new Error("manual-review-required");
   const id = "lc_" + createHash("sha256").update(`direct:${input.paymentId}`).digest("hex").slice(0,32);
   const email = input.email.toLowerCase();
+  const buyerContact = input.buyerContact ? readBuyerContact(input.buyerContact) : undefined;
   const orderRef = database.collection(stickerCollection("sticker_orders")).doc(id);
   const paymentRef = database.collection(stickerCollection("sticker_payments")).doc(input.paymentId);
   const inventoryRef = database.collection(stickerCollection("sticker_collections")).doc(input.uid);
@@ -29,12 +33,14 @@ export async function creditDashboardReviewedPurchase(database: Firestore, input
     const counts = stickerCounts(inventorySnap.data()?.counts);
     for (const stickerId of pack.stickerIds) counts[stickerId] += 1;
     const total = totalStickers(counts), now = Date.now(), profile = profileSnap.data();
+    const allocation = await planStickerEntries(database, transaction, { orderId: id, uid: input.uid, paymentId: input.paymentId, stickerIds: pack.stickerIds, existingNumbers: existing?.entryNumbers, action: "active", now });
     const review = { source: "merchant-dashboard-review", reviewedBy: input.reviewer.trim(), reviewedAt: now };
-    transaction.set(orderRef, { uid: input.uid, email, packageId: pack.id, quantity: pack.stickers, amount: input.amount, currency: input.currency, status: "approved", paymentId: input.paymentId, createdAt: existing?.createdAt || now, updatedAt: now, ...review });
+    allocation.commit();
+    transaction.set(orderRef, { uid: input.uid, email, ...(buyerContact || existing?.buyerContact ? { buyerContact: buyerContact || existing!.buyerContact } : {}), entryNumbers: allocation.numbers, packageId: pack.id, quantity: pack.stickers, amount: input.amount, currency: input.currency, status: "approved", paymentId: input.paymentId, createdAt: existing?.createdAt || now, updatedAt: now, ...review });
     transaction.set(paymentRef, { orderId: id, uid: input.uid, status: "approved", credited: true, updatedAt: now, ...review });
     transaction.set(inventoryRef, { uid: input.uid, counts, total, updatedAt: now });
     transaction.set(rankingRef, { uid: input.uid, total, displayName: String(profile?.displayName || "Jugador").slice(0,50), photoURL: String(profile?.photoURL || ""), updatedAt: now });
-    transaction.set(deliveryRef, { orderId: id, uid: input.uid, email, packageId: pack.id, quantity: pack.stickers, method: "manual", status: "manual-pending", createdAt: now });
+    transaction.set(deliveryRef, { orderId: id, uid: input.uid, email, packageId: pack.id, quantity: pack.stickers, entryNumbers: allocation.numbers, method: "manual", status: "manual-pending", createdAt: now });
     return { orderId: id, repeated: false };
   });
 }

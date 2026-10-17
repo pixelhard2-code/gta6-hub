@@ -175,7 +175,7 @@ export default function SorteosPage() {
             <span className="text-pink-400 font-mono font-bold text-xs">Paso 02</span>
             <h3 className="text-sm font-bold text-white mt-2 mb-1">Recíbelos por correo</h3>
             <p className="text-xs text-neutral-400 leading-relaxed">
-              Indica tu correo y paga el pack en Mercado Pago. Cuando se confirme el pago, recibirás un ZIP con tus stickers en ese correo. Conserva tu comprobante para consultar el estado de la entrega.
+              Completa tus datos de contacto y paga el pack en Mercado Pago. Cuando se confirme el pago, recibirás un ZIP con tus stickers y sus números únicos en el correo indicado. Conserva tu comprobante para consultar la entrega.
             </p>
           </div>
           <div className="p-4 rounded-xl bg-[#141520] border border-neutral-800/80">
@@ -213,7 +213,7 @@ export default function SorteosPage() {
               {STICKER_SOCIAL_VISIBLE ? "¿Cómo recibiré mis stickers y veré mi colección?" : "¿Cómo recibiré mis stickers?"}
             </summary>
             <p className="mt-2 text-neutral-400 text-xs leading-relaxed">
-              {STICKER_SOCIAL_VISIBLE ? "Tus compras confirmadas aparecerán en «Mis stickers» dentro de tu perfil, con los diseños y la cantidad de copias que tienes. Cada copia equivale a una participación. El checkout con entrega automática enviará un ZIP con los PNG al correo indicado; con un enlace directo de pago debes completar el formulario de entrega para validar la compra." : "Antes de abrir Mercado Pago, indica el correo donde quieres recibir tus stickers. Tras confirmarse el pago, enviaremos automáticamente un ZIP con los PNG de tu pack. Puedes consultar el estado desde el comprobante de compra. Si pagaste mediante uno de los enlaces directos anteriores, completa el formulario de entrega en «Ya pagué: solicitar mis stickers» para que revisemos esa operación. Cada sticker de una compra confirmada equivale a una participación en el sorteo promocional."}
+              {STICKER_SOCIAL_VISIBLE ? "Tus compras confirmadas aparecerán en «Mis stickers» dentro de tu perfil, con los diseños y la cantidad de copias que tienes. Cada copia equivale a una participación. El checkout con entrega automática enviará un ZIP con los PNG al correo indicado; con un enlace directo de pago debes completar el formulario de entrega para validar la compra." : "Antes de abrir Mercado Pago, completa tu nombre, apellido, teléfono y correo. Tras confirmarse el pago, enviaremos automáticamente un ZIP con los PNG de tu pack y los números únicos de cada sticker. Los números aparecerán también en el correo y en tu comprobante privado de compra. Si pagaste mediante uno de los enlaces directos anteriores, completa el formulario de entrega en «Ya pagué: solicitar mis stickers» para que revisemos esa operación. Cada sticker de una compra confirmada equivale a una participación en el sorteo promocional."}
             </p>
           </details>
         </section>

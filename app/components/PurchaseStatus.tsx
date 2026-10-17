@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import AuthModal from "./AuthModal";
 import styles from "./Hub.module.css";
+import { formatStickerNumber } from "@/app/lib/stickers/entry-numbers";
 
 interface Purchase {
   id: string; quantity: number; email: string; amount: number; currency: string;
   status: string; delivery: string; testMode: boolean; deliveryError?: boolean;
   verificationError?: { code: string; message: string } | null;
+  entryNumbers?: number[];
 }
 
 export default function PurchaseStatus() {
@@ -46,7 +48,7 @@ export default function PurchaseStatus() {
         if (!response.ok) throw new Error(response.status === 404 ? "No encontramos esta compra en tu cuenta." : "No pudimos consultar la compra.");
         let result = await response.json() as Purchase;
         let syncError = "";
-        if (!["refunded", "charged_back"].includes(result.status) && !(result.status === "approved" && result.delivery === "sent")) {
+        if (!["refunded", "charged_back"].includes(result.status) && !(result.status === "approved" && result.delivery === "sent" && result.entryNumbers?.length === result.quantity)) {
           try {
             const sync = await fetch("/api/stickers/order/" + orderId, {
               method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
@@ -90,6 +92,7 @@ export default function PurchaseStatus() {
       <h2 className="mb-3 text-xl font-bold">{purchase.status === "approved" ? "Pago confirmado" : ["refunded", "charged_back"].includes(purchase.status) ? "Compra reembolsada" : ["rejected", "cancelled", "canceled"].includes(purchase.status) ? "El pago no fue aprobado" : "Esperando confirmación de Mercado Pago"}</h2>
       <p>{purchase.quantity} {purchase.quantity === 1 ? "sticker digital" : "stickers digitales"} · {new Intl.NumberFormat("es-CL", { style: "currency", currency: purchase.currency }).format(purchase.amount)} {purchase.currency}</p>
       {purchase.status === "approved" && <p className="mt-3">{purchase.delivery === "sent" ? "Enviamos el ZIP de tus stickers a " : "Estamos preparando el envío de tus stickers a "}<strong>{purchase.email}</strong>.{purchase.delivery === "sent" && " Revisa también la carpeta de spam."}</p>}
+      {Boolean(purchase.entryNumbers?.length) && <div className="mt-4"><p className="font-semibold">{purchase.testMode ? "Números de prueba" : "Números de tus stickers"}</p><p className="mt-2 break-words font-mono">{purchase.entryNumbers!.map((number) => formatStickerNumber(number, purchase.testMode)).join(" · ")}</p>{["refunded", "charged_back"].includes(purchase.status) && <p className="mt-2">Estos números están anulados y no participan en el sorteo.</p>}</div>}
       {purchase.status === "approved" && purchase.deliveryError && <p role="alert" className="mt-3">Tu pago está confirmado. El envío del correo falló; puedes reintentarlo sin volver a comprar.</p>}
       {purchase.status === "approved" && purchase.delivery !== "sent" && <button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void retryDelivery()}>{busy ? "Reintentando…" : "Reintentar envío"}</button>}
       {!["approved", "refunded", "charged_back", "rejected", "cancelled", "canceled"].includes(purchase.status) && <p className="mt-3">La página se actualiza mientras Mercado Pago confirma el resultado. Volver del checkout por sí solo no confirma el pago.</p>}

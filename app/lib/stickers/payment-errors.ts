@@ -1,4 +1,7 @@
 const failures: Record<string, { status: number; message: string }> = {
+  "invalid-contact": { status: 400, message: "Completa tu nombre, apellido y un teléfono válido. Para números fuera de Chile, incluye + y el código de país." },
+  "invalid-entry-allocation": { status: 503, message: "No pudimos verificar los números de esta compra. La orden sigue guardada y requiere revisión; no vuelvas a pagar." },
+  "entry-number-collision": { status: 503, message: "La numeración requiere una revisión del servidor. Tu compra sigue guardada; no necesitas volver a pagar." },
   "merchant-environment-unverified": { status: 503, message: "No pudimos comprobar si la cuenta vendedora es de prueba. Tu compra sigue guardada; debemos revisar la integración." },
   "merchant-mode-mismatch": { status: 503, message: "La cuenta vendedora configurada no corresponde al modo de la tienda. Debemos revisar las credenciales; no necesitas volver a pagar." },
   "payment-provider-auth": { status: 503, message: "Mercado Pago no permite consultar el pago con las credenciales del servidor. Debemos revisar la configuración del vendedor." },

@@ -4,6 +4,9 @@ import type { Firestore } from "firebase-admin/firestore";
 import { getStickerPackage, stickerCounts, totalStickers, validDeliveryEmail } from "./catalog";
 import { paymentFailureInfo } from "./payment-errors";
 import { paymentEnvironmentMatches, type VerifiedMerchant } from "./merchant";
+import { readBuyerContact, type BuyerContact } from "./contact";
+import { planStickerEntries } from "./entries";
+import { readEntryNumbers } from "./entry-numbers";
 
 export interface StickerOrder {
   uid: string;
@@ -16,6 +19,8 @@ export interface StickerOrder {
   createdAt: number;
   paymentId?: string;
   checkoutUrl?: string;
+  buyerContact?: BuyerContact;
+  entryNumbers?: number[];
 }
 export interface VerifiedPayment {
   id: number | string;
@@ -41,6 +46,7 @@ export async function readBuyerStickerOrder(database: Firestore, uid: string, id
     delivery: delivery.data()?.status || "awaiting-payment",
     deliveryError: delivery.data()?.lastError === "delivery-failed" && delivery.data()?.status !== "sent",
     verificationError: failure ? { code: failure.code, message: failure.message } : null,
+    entryNumbers: readEntryNumbers(data.entryNumbers, data.entryNumbers === undefined ? undefined : data.quantity),
   };
 }
 
@@ -53,18 +59,20 @@ export function verifyMercadoPagoSignature(secret: string, id: string, requestId
 }
 
 export async function createStickerOrder(database: Firestore, input: {
-  uid: string; email: string; packageId: string; attemptId: string; amount: number; currency: string;
+  uid: string; email: string; packageId: string; attemptId: string; amount: number; currency: string; buyerContact: BuyerContact;
 }) {
   const pack = getStickerPackage(input.packageId);
+  const buyerContact = readBuyerContact(input.buyerContact);
   if (!pack || !validDeliveryEmail(input.email) || !/^[a-f0-9-]{36}$/i.test(input.attemptId) || !Number.isFinite(input.amount) || input.amount <= 0) throw new Error("invalid-order");
   const id = "lc_" + createHash("sha256").update(`${input.uid}:${input.attemptId}`).digest("hex").slice(0, 32);
   const ref = database.collection(stickerCollection("sticker_orders")).doc(id);
-  const order: StickerOrder = { uid: input.uid, email: input.email.trim().toLowerCase(), packageId: pack.id, quantity: pack.stickers, amount: input.amount, currency: input.currency, status: "pending", createdAt: Date.now() };
+  const order: StickerOrder = { uid: input.uid, email: input.email.trim().toLowerCase(), buyerContact, packageId: pack.id, quantity: pack.stickers, amount: input.amount, currency: input.currency, status: "pending", createdAt: Date.now() };
   const saved = await database.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     if (snapshot.exists) {
       const previous = snapshot.data() as StickerOrder;
       if (previous.uid !== input.uid || previous.packageId !== pack.id || previous.email !== order.email || previous.amount !== order.amount || previous.currency !== order.currency) throw new Error("conflicting-order");
+      if (JSON.stringify(previous.buyerContact) !== JSON.stringify(buyerContact)) throw new Error("conflicting-order");
       return previous;
     }
     transaction.create(ref, order);
@@ -141,6 +149,10 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
       transaction.set(paymentRef, { orderId, uid: order.uid, status, credited: false, updatedAt: now });
       return { status, orderId };
     }
+    const allocation = approved || reversed ? await planStickerEntries(database, transaction, {
+      orderId, uid: order.uid, paymentId: String(payment.id), stickerIds: pack.stickerIds,
+      existingNumbers: order.entryNumbers, action: reversed ? "void" : "active", now,
+    }) : null;
     if (approved && !wasCredited) {
       for (const id of pack.stickerIds) counts[id] += 1;
     } else if (reversed && wasCredited) {
@@ -148,8 +160,9 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
     }
     const credited = approved || (wasCredited && !reversed);
     const status = reversed ? "refunded" : credited ? "approved" : payment.status;
+    allocation?.commit();
     transaction.set(paymentRef, { orderId, uid: order.uid, status, credited, updatedAt: now });
-    transaction.update(orderRef, { status, ...(credited || reversed ? { paymentId: String(payment.id) } : {}), updatedAt: now });
+    transaction.update(orderRef, { status, ...(credited || reversed ? { paymentId: String(payment.id) } : {}), ...(allocation?.numbers.length ? { entryNumbers: allocation.numbers } : {}), updatedAt: now });
     if (credited !== wasCredited) {
       const total = totalStickers(counts);
       transaction.set(inventoryRef, { uid: order.uid, counts, total, updatedAt: now });
@@ -157,7 +170,9 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
       transaction.set(rankingRef, { uid: order.uid, total, displayName: String(profile?.displayName || "Jugador").slice(0, 50), photoURL: String(profile?.photoURL || ""), updatedAt: now });
     }
     if (approved && !deliverySnap.exists) {
-      transaction.create(deliveryRef, { orderId, uid: order.uid, email: order.email, packageId: pack.id, quantity: pack.stickers, status: "pending", attempts: 0, createdAt: now });
+      transaction.create(deliveryRef, { orderId, uid: order.uid, email: order.email, packageId: pack.id, quantity: pack.stickers, entryNumbers: allocation!.numbers, status: "pending", attempts: 0, createdAt: now });
+    } else if (approved && allocation && deliverySnap.data()?.status !== "sent") {
+      transaction.update(deliveryRef, { entryNumbers: allocation.numbers });
     } else if (reversed && deliverySnap.exists && deliverySnap.data()?.status !== "sent") {
       transaction.update(deliveryRef, { status: "cancelled", updatedAt: now });
     }
@@ -165,7 +180,7 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
   });
 }
 
-export async function deliverStickerOrder(database: Firestore, orderId: string, send: (job: { orderId: string; email: string; packageId: string; quantity: number }) => Promise<string>) {
+export async function deliverStickerOrder(database: Firestore, orderId: string, send: (job: { orderId: string; email: string; packageId: string; quantity: number; entryNumbers?: number[] }) => Promise<string>) {
   const jobRef = database.collection(stickerCollection("sticker_deliveries")).doc(orderId);
   const leaseId = randomUUID();
   const job = await database.runTransaction(async (transaction) => {
@@ -173,7 +188,8 @@ export async function deliverStickerOrder(database: Firestore, orderId: string, 
     const data = snapshot.data();
     if (!data || data.method === "manual" || orderSnapshot.data()?.status !== "approved" || ["sent", "cancelled"].includes(data.status) || Number(data.leaseUntil || 0) > Date.now()) return null;
     transaction.update(jobRef, { status: "sending", leaseId, leaseUntil: Date.now() + 60000, attempts: Number(data.attempts || 0) + 1 });
-    return { orderId, email: String(data.email), packageId: String(data.packageId), quantity: Number(data.quantity) };
+    const numbers = readEntryNumbers(orderSnapshot.data()?.entryNumbers, orderSnapshot.data()?.entryNumbers === undefined ? undefined : Number(data.quantity));
+    return { orderId, email: String(data.email), packageId: String(data.packageId), quantity: Number(data.quantity), ...(numbers.length ? { entryNumbers: numbers } : {}) };
   });
   if (!job) return false;
   try {
