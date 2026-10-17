@@ -64,6 +64,10 @@ Un reembolso o contracargo retira el pack del saldo y ranking. Los reembolsos pa
 
 El webhook intenta enviar el correo tras aprobarse el pago. Un fallo deja un trabajo pendiente en `sticker_deliveries`. El comprador puede usar «Reintentar envío» o descargar su colección; el envío permanece limitado al correo guardado en la orden.
 
+En Checkout Pro, una cuenta de prueba también usa la API de producción y puede devolver `live_mode=true`. La tienda comprueba `/users/me` con el token privado: exige el ID configurado y la etiqueta `test_user` en modo prueba; rechaza esa etiqueta en producción. Un pago de una cuenta de prueba verificada sólo se acredita en `sticker_test_*`, independientemente de ese indicador booleano. Para una cuenta real se exige `live_mode=true`. Un indicador ausente o inválido se rechaza. Estas comprobaciones son iguales al crear el checkout, recibir el webhook y recuperar una compra desde su comprobante.
+
+Cerrar la página no borra la compra: `/compra?orden=…` permite al propietario autenticado volver a consultar Mercado Pago, comprobar la operación y reintentar su entrega sin otro pago ni otra acreditación. La URL de retorno sirve únicamente como pista; su estado nunca confirma una compra.
+
 Para reintentos operativos configura `CRON_SECRET` y programa un GET a `/api/stickers/delivery/retry` con el encabezado `Authorization: Bearer <CRON_SECRET>`, usando un scheduler del servidor. No pongas ese secreto en una URL pública. No se ha creado un cron de Vercel automáticamente; el endpoint ya está preparado. Resend conserva sus claves de idempotencia durante 24 horas; el estado persistido `sent` evita reenvíos normales posteriores. Un timeout con resultado desconocido después de esas 24 horas puede requerir revisar el registro de Resend antes de reintentar.
 
 ## Validar una compra de los enlaces directos

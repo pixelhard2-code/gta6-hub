@@ -1,4 +1,6 @@
 const failures: Record<string, { status: number; message: string }> = {
+  "merchant-environment-unverified": { status: 503, message: "No pudimos comprobar si la cuenta vendedora es de prueba. Tu compra sigue guardada; debemos revisar la integración." },
+  "merchant-mode-mismatch": { status: 503, message: "La cuenta vendedora configurada no corresponde al modo de la tienda. Debemos revisar las credenciales; no necesitas volver a pagar." },
   "payment-provider-auth": { status: 503, message: "Mercado Pago no permite consultar el pago con las credenciales del servidor. Debemos revisar la configuración del vendedor." },
   "payment-provider-not-found": { status: 404, message: "Mercado Pago no encontró esta operación con el vendedor configurado. Tu compra sigue guardada; no necesitas volver a pagar." },
   "payment-provider-busy": { status: 503, message: "Mercado Pago está limitando las consultas. Intenta actualizar el estado dentro de un minuto." },

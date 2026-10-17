@@ -1,5 +1,5 @@
 import { stickerCollection } from "@/app/lib/stickers/namespace";
-import { authenticatedBuyer, commerceConfig, mercadoPago, stickerAdmin, appUrl, apiError } from "@/app/lib/stickers/server";
+import { authenticatedBuyer, commerceConfig, mercadoPago, stickerAdmin, appUrl, apiError, verifiedStickerMerchant } from "@/app/lib/stickers/server";
 import { getStickerPackage, STICKER_PACKAGES, validDeliveryEmail } from "@/app/lib/stickers/catalog";
 import { createStickerOrder, prepareStickerCheckout } from "@/app/lib/stickers/commerce";
 import { testBuyerAccess } from "@/app/lib/stickers/checkout-policy";
@@ -36,8 +36,7 @@ export async function POST(request: Request) {
     if (!pack) throw new Error("invalid-package");
     if (!validDeliveryEmail(body.email)) throw new Error("invalid-email");
     const { db } = stickerAdmin();
-    const merchant = await mercadoPago("/users/me");
-    if (String(merchant.id) !== config.collectorId) throw new Error("merchant-mismatch");
+    await verifiedStickerMerchant(config);
     const limitRef = db.collection(stickerCollection("sticker_checkout_limits")).doc(buyer.uid);
     await db.runTransaction(async (transaction) => {
       const snap = await transaction.get(limitRef);

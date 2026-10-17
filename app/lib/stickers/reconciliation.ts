@@ -4,11 +4,12 @@ import { applyVerifiedPayment, deliverStickerOrder, readBuyerStickerOrder, type 
 import { stickerCollection } from "./namespace";
 import type { StickerEmailJob } from "./email-transport";
 import { paymentFailureInfo } from "./payment-errors";
+import type { VerifiedMerchant } from "./merchant";
 
 /** A return URL is only a lookup hint. Only a payment fetched from the provider can grant stickers. */
 export async function reconcileBuyerStickerOrder(database: Firestore, input: {
   uid: string; orderId: string; paymentId?: string; now?: number;
-}, merchant: { collectorId: string; liveMode: boolean }, provider: (path: string) => Promise<unknown>, send: (job: StickerEmailJob) => Promise<string>) {
+}, resolveMerchant: () => Promise<VerifiedMerchant>, provider: (path: string) => Promise<unknown>, send: (job: StickerEmailJob) => Promise<string>) {
   if (!/^lc_[a-f0-9]{32}$/.test(input.orderId) || (input.paymentId && !/^\d{1,32}$/.test(input.paymentId))) throw new Error("invalid-order");
   const ref = database.collection(stickerCollection("sticker_orders")).doc(input.orderId);
   const now = input.now ?? Date.now(), leaseId = randomUUID();
@@ -44,6 +45,7 @@ export async function reconcileBuyerStickerOrder(database: Firestore, input: {
       if (candidates[0]) payment = await fetchPayment(String(candidates[0].id));
     }
     if (payment) {
+      const merchant = await resolveMerchant();
       const applied = await applyVerifiedPayment(database, payment, merchant);
       if (applied.status === "approved" && applied.orderId === input.orderId) {
         try { await deliverStickerOrder(database, input.orderId, send); }

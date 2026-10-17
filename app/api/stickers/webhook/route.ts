@@ -1,4 +1,4 @@
-import { commerceConfig, mercadoPago, stickerAdmin } from "@/app/lib/stickers/server";
+import { commerceConfig, mercadoPago, stickerAdmin, verifiedStickerMerchant } from "@/app/lib/stickers/server";
 import { applyVerifiedPayment, deliverStickerOrder, verifyMercadoPagoSignature, type VerifiedPayment } from "@/app/lib/stickers/commerce";
 import { sendStickerEmail } from "@/app/lib/stickers/email";
 
@@ -18,7 +18,8 @@ export async function POST(request: Request) {
     const payment = await mercadoPago(`/v1/payments/${id}`) as VerifiedPayment;
     if (String(payment.id) !== id) throw new Error("payment-mismatch");
     const { db } = stickerAdmin();
-    const result = await applyVerifiedPayment(db, payment, { collectorId: config.collectorId, liveMode: config.liveMode });
+    const merchant = await verifiedStickerMerchant(config);
+    const result = await applyVerifiedPayment(db, payment, merchant);
     if (result.status === "approved" && result.orderId) await deliverStickerOrder(db, result.orderId, sendStickerEmail);
     return Response.json({ status: result.status });
   } catch {

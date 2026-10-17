@@ -3,6 +3,7 @@ import { createHash, createHmac, timingSafeEqual, randomUUID } from "node:crypto
 import type { Firestore } from "firebase-admin/firestore";
 import { getStickerPackage, stickerCounts, totalStickers, validDeliveryEmail } from "./catalog";
 import { paymentFailureInfo } from "./payment-errors";
+import { paymentEnvironmentMatches, type VerifiedMerchant } from "./merchant";
 
 export interface StickerOrder {
   uid: string;
@@ -103,7 +104,7 @@ export async function prepareStickerCheckout(database: Firestore, orderId: strin
 }
 
 /** Only call with payment data fetched from Mercado Pago, never with webhook body data. */
-export async function applyVerifiedPayment(database: Firestore, payment: VerifiedPayment, merchant: { collectorId: string; liveMode: boolean }) {
+export async function applyVerifiedPayment(database: Firestore, payment: VerifiedPayment, merchant: VerifiedMerchant) {
   if (!/^\d+$/.test(String(payment.id))) throw new Error("invalid-payment");
   if (!/^lc_[a-f0-9]{32}$/.test(payment.external_reference || "")) return { status: "ignored", orderId: null };
   const orderId = payment.external_reference!;
@@ -116,7 +117,7 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
     const pack = getStickerPackage(order.packageId);
     if (!pack || order.quantity !== pack.stickers) throw new Error("invalid-order");
     if (String(payment.collector_id) !== merchant.collectorId) throw new Error("payment-mismatch-seller");
-    if (payment.live_mode !== merchant.liveMode) throw new Error("payment-mismatch-environment");
+    if (!paymentEnvironmentMatches(payment.live_mode, merchant)) throw new Error("payment-mismatch-environment");
     if (payment.currency_id !== order.currency) throw new Error("payment-mismatch-currency");
     if (!Number.isFinite(payment.transaction_amount) || Math.abs(payment.transaction_amount - order.amount) > 0.000001) throw new Error("payment-mismatch-amount");
 

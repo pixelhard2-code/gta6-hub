@@ -21,7 +21,9 @@ const { reconcileBuyerStickerOrder } = require(join(process.env.STICKER_TEST_BUI
 const app = initializeApp({ projectId: "demo-gta6hub-follow" }, `stickers-${randomUUID()}`);
 const db = getFirestore(app);
 after(async () => { await db.terminate(); await deleteApp(app); });
-const merchant = { collectorId: "12345", liveMode: false };
+const { verifyMerchantAccount, paymentEnvironmentMatches } = require(join(process.env.STICKER_TEST_BUILD, "merchant.js"));
+const merchant = verifyMerchantAccount({ id: 12345, tags: ["test_user"] }, { collectorId: "12345", liveMode: false });
+const resolveMerchant = async () => merchant;
 let sequence = 70000;
 async function order(packageId = "legend", uid = `buyer-${randomUUID()}`) {
   const result = await createStickerOrder(db, { uid, packageId, email: "buyer@example.invalid", amount: packageId === "legend" ? 10000 : packageId === "double" ? 5000 : 3000, currency: "CLP", attemptId: randomUUID() });
@@ -30,6 +32,52 @@ async function order(packageId = "legend", uid = `buyer-${randomUUID()}`) {
 }
 const collection = async (uid) => (await db.collection("sticker_collections").doc(uid).get()).data();
 
+test("merchant identity must match both the configured seller and the store mode", () => {
+  const expected = { collectorId: "12345", liveMode: false };
+  assert.deepEqual(verifyMerchantAccount({ id: 12345, tags: ["test_user"] }, expected), merchant);
+  for (const tags of [undefined, null, "test_user", [true]]) {
+    assert.throws(() => verifyMerchantAccount({ id: 12345, tags }, expected), /merchant-environment-unverified/);
+  }
+  assert.throws(() => verifyMerchantAccount({ id: 99999, tags: ["test_user"] }, expected), /merchant-mismatch/);
+  assert.throws(() => verifyMerchantAccount({ id: 12345, tags: ["normal"] }, expected), /merchant-mode-mismatch/);
+  assert.throws(() => verifyMerchantAccount({ id: 12345, tags: ["test_user"] }, { ...expected, liveMode: true }), /merchant-mode-mismatch/);
+  const real = verifyMerchantAccount({ id: 12345, tags: ["normal"] }, { ...expected, liveMode: true });
+  assert.equal(paymentEnvironmentMatches(true, real), true);
+  assert.equal(paymentEnvironmentMatches(false, real), false);
+  for (const flag of [true, false]) assert.equal(paymentEnvironmentMatches(flag, merchant), true);
+  for (const flag of [undefined, null, "true", 1]) assert.equal(paymentEnvironmentMatches(flag, merchant), false);
+  assert.equal(paymentEnvironmentMatches(true, { ...real, testAccount: true }), false);
+});
+
+test("Checkout Pro live_mode=true from a verified test seller recovers only the trial once", async () => {
+  const previous = process.env.MERCADOPAGO_MODE;
+  try {
+    process.env.MERCADOPAGO_MODE = "test";
+    const item = await order("basic"), now = Date.now();
+    let sends = 0;
+    const provider = async () => ({ ...item.payment, live_mode: true });
+    const send = async () => { sends++; return "test-seller-email"; };
+    const first = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now }, resolveMerchant, provider, send);
+    assert.equal(first.status, "approved"); assert.equal(first.delivery, "sent");
+    await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 16000 }, resolveMerchant, provider, send);
+    assert.equal(sends, 1);
+    assert.equal((await db.collection("sticker_test_collections").doc(item.uid).get()).data().total, 1);
+    assert.equal((await db.collection("sticker_collections").doc(item.uid).get()).exists, false);
+    assert.equal((await db.collection("sticker_deliveries").doc(item.id).get()).exists, false);
+  } finally {
+    if (previous === undefined) delete process.env.MERCADOPAGO_MODE;
+    else process.env.MERCADOPAGO_MODE = previous;
+  }
+});
+
+test("a real seller cannot bypass trial isolation through a true payment flag", async () => {
+  const item = await order("basic");
+  const realSeller = async () => verifyMerchantAccount({ id: 12345, tags: ["normal"] }, { collectorId: "12345", liveMode: false });
+  await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id }, realSeller, async () => ({ ...item.payment, live_mode: true }), async () => { throw new Error("Must not send"); }), /merchant-mode-mismatch/);
+  assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).verificationError.code, "merchant-mode-mismatch");
+  assert.equal(await collection(item.uid), undefined);
+});
+
 test("a missed webhook is recovered from provider data and sends the existing order once", async () => {
   const item = await order("basic");
   const paths = [];
@@ -37,11 +85,11 @@ test("a missed webhook is recovered from provider data and sends the existing or
   const provider = async (path) => { paths.push(path); return path.startsWith("/v1/payments/search?") ? { results: [item.payment] } : item.payment; };
   const send = async (job) => { assert.equal(job.orderId, item.id); sends++; return "recovered-email"; };
   const now = Date.now();
-  const first = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now }, merchant, provider, send);
+  const first = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now }, resolveMerchant, provider, send);
   assert.equal(first.status, "approved"); assert.equal(first.delivery, "sent");
   assert.equal(new URL("https://example.invalid" + paths[0]).searchParams.get("external_reference"), item.id);
   assert.equal(paths[1], "/v1/payments/" + item.payment.id);
-  await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 16000 }, merchant, provider, send);
+  await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 16000 }, resolveMerchant, provider, send);
   assert.equal(sends, 1); assert.equal((await collection(item.uid)).total, 1);
   assert.equal(paths[2], "/v1/payments/" + item.payment.id);
 });
@@ -50,14 +98,14 @@ test("concurrent receipt checks share a lease and do not duplicate provider look
   const item = await order("basic");
   let lookups = 0, sends = 0;
   const provider = async () => { lookups++; return item.payment; };
-  await Promise.all(Array.from({ length: 5 }, () => reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id }, merchant, provider, async () => { sends++; return "once"; })));
+  await Promise.all(Array.from({ length: 5 }, () => reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id }, resolveMerchant, provider, async () => { sends++; return "once"; })));
   assert.equal(lookups, 1); assert.equal(sends, 1); assert.equal((await collection(item.uid)).total, 1);
 });
 
 test("reconciliation refuses another buyer before looking up a payment or sending mail", async () => {
   const item = await order("basic");
   const forbidden = async () => { throw new Error("Provider must not be called"); };
-  assert.equal(await reconcileBuyerStickerOrder(db, { uid: "another-buyer", orderId: item.id }, merchant, forbidden, forbidden), null);
+  assert.equal(await reconcileBuyerStickerOrder(db, { uid: "another-buyer", orderId: item.id }, forbidden, forbidden, forbidden), null);
   assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).status, "pending");
 });
 
@@ -65,16 +113,16 @@ test("a forged return payment ID or a mismatched search result cannot credit a d
   const owned = await order("basic"), other = await order("basic");
   let sends = 0;
   const provider = async (path) => path.startsWith("/v1/payments/search?") ? { results: [other.payment] } : other.payment;
-  const receipt = await reconcileBuyerStickerOrder(db, { uid: owned.uid, orderId: owned.id, paymentId: other.payment.id }, merchant, provider, async () => { sends++; return "invalid"; });
+  const receipt = await reconcileBuyerStickerOrder(db, { uid: owned.uid, orderId: owned.id, paymentId: other.payment.id }, resolveMerchant, provider, async () => { sends++; return "invalid"; });
   assert.equal(receipt.status, "pending"); assert.equal(receipt.delivery, "awaiting-payment");
   assert.equal((await readBuyerStickerOrder(db, other.uid, other.id)).status, "pending");
   assert.equal(sends, 0); assert.equal(await collection(owned.uid), undefined); assert.equal(await collection(other.uid), undefined);
 });
 
 test("recovery verifies seller, environment, currency and amount using the full provider payment", async () => {
-  for (const mismatch of [{ collector_id: "another-seller" }, { live_mode: true }, { currency_id: "USD" }, { transaction_amount: 1 }]) {
+  for (const mismatch of [{ collector_id: "another-seller" }, { live_mode: "true" }, { currency_id: "USD" }, { transaction_amount: 1 }]) {
     const item = await order("basic");
-    await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id }, merchant, async () => ({ ...item.payment, ...mismatch }), async () => { throw new Error("Must not send"); }), /payment-mismatch/);
+    await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id }, resolveMerchant, async () => ({ ...item.payment, ...mismatch }), async () => { throw new Error("Must not send"); }), /payment-mismatch/);
     assert.equal((await readBuyerStickerOrder(db, item.uid, item.id)).status, "pending");
     assert.equal(await collection(item.uid), undefined);
   }
@@ -83,9 +131,9 @@ test("recovery verifies seller, environment, currency and amount using the full 
 test("a recovered payment stays approved when email fails and retries without another credit", async () => {
   const item = await order("basic"), now = Date.now();
   const provider = async () => item.payment;
-  const failed = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now }, merchant, provider, async () => { throw new Error("simulated-email-outage"); });
+  const failed = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now }, resolveMerchant, provider, async () => { throw new Error("simulated-email-outage"); });
   assert.equal(failed.status, "approved"); assert.equal(failed.delivery, "pending"); assert.equal(failed.deliveryError, true);
-  const recovered = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 16000 }, merchant, provider, async () => "retried-email");
+  const recovered = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 16000 }, resolveMerchant, provider, async () => "retried-email");
   assert.equal(recovered.delivery, "sent"); assert.equal(recovered.deliveryError, false);
   assert.equal((await collection(item.uid)).total, 1);
 });
@@ -94,8 +142,8 @@ test("failed provider lookups release the lease but retain a cooldown before ret
   const item = await order("basic"), now = Date.now();
   let calls = 0;
   const unavailable = async () => { calls++; throw new Error("provider-offline"); };
-  await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now }, merchant, unavailable, unavailable), /provider-offline/);
-  const cached = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 1000 }, merchant, unavailable, unavailable);
+  await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now }, resolveMerchant, unavailable, unavailable), /provider-offline/);
+  const cached = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, now: now + 1000 }, resolveMerchant, unavailable, unavailable);
   assert.equal(cached.status, "pending"); assert.equal(calls, 1);
   assert.equal(cached.verificationError.code, "verification-failed");
   assert.equal(JSON.stringify(cached).includes("provider-offline"), false);
@@ -105,11 +153,11 @@ test("failed provider lookups release the lease but retain a cooldown before ret
 
 test("the owner can see a safe persistent mismatch reason without private provider data", async () => {
   const item = await order("basic"), now = Date.now();
-  await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now }, merchant, async () => ({ ...item.payment, live_mode: true }), async () => "must-not-send"), /payment-mismatch-environment/);
+  await assert.rejects(reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now }, resolveMerchant, async () => ({ ...item.payment, live_mode: "true" }), async () => "must-not-send"), /payment-mismatch-environment/);
   const receipt = await readBuyerStickerOrder(db, item.uid, item.id);
   assert.equal(receipt.verificationError.code, "payment-mismatch-environment");
   assert.equal(await readBuyerStickerOrder(db, "another-buyer", item.id), null);
-  const recovered = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now: now + 16000 }, merchant, async () => item.payment, async () => "valid-email");
+  const recovered = await reconcileBuyerStickerOrder(db, { uid: item.uid, orderId: item.id, paymentId: item.payment.id, now: now + 16000 }, resolveMerchant, async () => item.payment, async () => "valid-email");
   assert.equal(recovered.verificationError, null); assert.equal(recovered.status, "approved");
 });
 
@@ -156,11 +204,11 @@ test("same buyer and attempt stay isolated across simulated and real purchase le
   try {
     process.env.MERCADOPAGO_MODE = "production";
     const real = await createStickerOrder(db, { ...input, packageId: "basic", amount: 3000 });
-    await applyVerifiedPayment(db, { id: String(++sequence), external_reference: real.id, status: "approved", transaction_amount: 3000, currency_id: "CLP", collector_id: "12345", live_mode: true }, { collectorId: "12345", liveMode: true });
+    await applyVerifiedPayment(db, { id: String(++sequence), external_reference: real.id, status: "approved", transaction_amount: 3000, currency_id: "CLP", collector_id: "12345", live_mode: true }, { collectorId: "12345", liveMode: true, testAccount: false });
     process.env.MERCADOPAGO_MODE = "test";
     const trial = await createStickerOrder(db, { ...input, packageId: "double", amount: 5000 });
     assert.equal(trial.id, real.id);
-    await applyVerifiedPayment(db, { id: String(++sequence), external_reference: trial.id, status: "approved", transaction_amount: 5000, currency_id: "CLP", collector_id: "12345", live_mode: false }, merchant);
+    await applyVerifiedPayment(db, { id: String(++sequence), external_reference: trial.id, status: "approved", transaction_amount: 5000, currency_id: "CLP", collector_id: "12345", live_mode: true }, merchant);
     let sends = 0;
     await deliverStickerOrder(db, trial.id, async () => { sends++; return "simulated-only"; });
     assert.equal(sends, 1);
@@ -282,7 +330,7 @@ test("a rejected payment can be retried with a new operation on the same checkou
 });
 test("amount, currency, seller, environment and reference mismatches cannot credit stickers", async () => {
   const item=await order("basic");
-  for(const change of [{transaction_amount:1},{currency_id:"USD"},{collector_id:"another"},{live_mode:true},{external_reference:"lc_"+"f".repeat(32)}]) await assert.rejects(applyVerifiedPayment(db,{...item.payment,...change},merchant));
+  for(const change of [{transaction_amount:1},{currency_id:"USD"},{collector_id:"another"},{live_mode:"true"},{external_reference:"lc_"+"f".repeat(32)}]) await assert.rejects(applyVerifiedPayment(db,{...item.payment,...change},merchant));
   assert.equal(await collection(item.uid),undefined);
 });
 test("two separate purchases accumulate atomically, including repeated sticker designs", async () => {

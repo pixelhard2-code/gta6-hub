@@ -3,6 +3,7 @@ import { STICKER_PACKAGES } from "./catalog";
 import { checkoutPolicy } from "./checkout-policy";
 import { buyerAuthFailure, firebaseSdkFailure, FIREBASE_SETUP_ERRORS } from "./auth-errors";
 import { paymentFailureInfo, providerFailureCode } from "./payment-errors";
+import { verifyMerchantAccount } from "./merchant";
 
 export function adminConfigured() {
   return Boolean(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT || (process.env.FIREBASE_ADMIN_PROJECT_ID && process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY));
@@ -81,6 +82,10 @@ export async function mercadoPago(path: string, init?: RequestInit) {
   const response = await fetch(`https://api.mercadopago.com${path}`, { ...init, cache: "no-store", signal: AbortSignal.timeout(12000), headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`, "Content-Type": "application/json", ...init?.headers } }).catch(() => { throw new Error("payment-provider-failed"); });
   if (!response.ok) throw new Error(providerFailureCode(response.status));
   return response.json().catch(() => { throw new Error("payment-provider-failed"); });
+}
+
+export async function verifiedStickerMerchant(config: { collectorId: string; liveMode: boolean }) {
+  return verifyMerchantAccount(await mercadoPago("/users/me"), config);
 }
 
 export function apiError(error: unknown) {

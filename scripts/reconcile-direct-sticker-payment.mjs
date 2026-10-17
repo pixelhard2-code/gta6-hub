@@ -18,6 +18,7 @@ try {
   symlinkSync(resolve("node_modules"), join(build, "node_modules"), "dir");
   const { getStickerPackage, validDeliveryEmail } = require(join(build, "catalog.js"));
   const { applyVerifiedPayment, deliverStickerOrder } = require(join(build, "commerce.js"));
+  const { verifyMerchantAccount, paymentEnvironmentMatches } = require(join(build, "merchant.js"));
   const { stickerCollection } = require(join(build, "namespace.js"));
   const { sendStickerEmailWithConfig } = require(join(build, "email-transport.js"));
   const pack = getStickerPackage(packageId);
@@ -33,7 +34,10 @@ try {
   const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, { headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` }, signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error("Could not verify the payment");
   const payment = await response.json();
-  if (String(payment.id) !== paymentId || payment.status !== "approved" || Number(payment.transaction_amount_refunded || 0) > 0 || String(payment.collector_id) !== process.env.MERCADOPAGO_COLLECTOR_ID || payment.currency_id !== process.env.MERCADOPAGO_CURRENCY || Math.abs(payment.transaction_amount - amount) > .000001 || payment.live_mode !== (process.env.MERCADOPAGO_MODE !== "test")) throw new Error("The payment does not match the seller, pack price, currency or environment");
+  const sellerResponse = await fetch("https://api.mercadopago.com/users/me", { headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` }, signal: AbortSignal.timeout(12000) });
+  if (!sellerResponse.ok) throw new Error("Could not verify the seller");
+  const merchant = verifyMerchantAccount(await sellerResponse.json(), { collectorId: process.env.MERCADOPAGO_COLLECTOR_ID, liveMode: process.env.MERCADOPAGO_MODE !== "test" });
+  if (String(payment.id) !== paymentId || payment.status !== "approved" || Number(payment.transaction_amount_refunded || 0) > 0 || String(payment.collector_id) !== merchant.collectorId || payment.currency_id !== process.env.MERCADOPAGO_CURRENCY || !Number.isFinite(payment.transaction_amount) || Math.abs(payment.transaction_amount - amount) > .000001 || !paymentEnvironmentMatches(payment.live_mode, merchant)) throw new Error("The payment does not match the seller, pack price, currency or environment");
   if (/^lc_/.test(payment.external_reference || "")) throw new Error("This payment belongs to an integrated checkout; process its original order");
   const id = "lc_" + createHash("sha256").update(`direct:${paymentId}`).digest("hex").slice(0,32);
   const ref = db.collection(stickerCollection("sticker_orders")).doc(id);
@@ -43,7 +47,7 @@ try {
       if (existing.data().uid !== uid || existing.data().email !== email.toLowerCase() || existing.data().packageId !== packageId) throw new Error("Payment already attributed to another buyer or pack");
     } else transaction.create(ref, { uid, email: email.toLowerCase(), packageId, quantity: pack.stickers, amount, currency: payment.currency_id, status: "pending", createdAt: Date.now(), source: "direct-link-merchant-review" });
   });
-  await applyVerifiedPayment(db, { ...payment, external_reference: id }, { collectorId: process.env.MERCADOPAGO_COLLECTOR_ID, liveMode: process.env.MERCADOPAGO_MODE !== "test" });
+  await applyVerifiedPayment(db, { ...payment, external_reference: id }, merchant);
   const sent = await deliverStickerOrder(db,id,job => sendStickerEmailWithConfig(job, { apiKey: process.env.RESEND_API_KEY, from: process.env.STICKER_EMAIL_FROM, testMode: process.env.MERCADOPAGO_MODE === "test", appUrl: process.env.APP_URL || "https://gta6-hub-coral.vercel.app" }));
   console.log(`Verified purchase credited. Order: ${id}. Email sent now: ${sent}.`);
   await db.terminate(); db = undefined; await deleteApp(app); app = undefined;

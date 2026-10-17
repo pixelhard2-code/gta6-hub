@@ -24,6 +24,7 @@ const catalog = load("app/lib/stickers/catalog.ts");
 const policy = load("app/lib/stickers/checkout-policy.ts");
 const errors = load("app/lib/stickers/auth-errors.ts");
 const paymentErrors = load("app/lib/stickers/payment-errors.ts");
+const merchantPolicy = load("app/lib/stickers/merchant.ts");
 const account = { project_id: "demo-auth", client_email: "server@example.invalid", private_key: "example\\nkey" };
 
 test("the actual Firebase SDK loads and rejects invalid tokens with Vercel's configured Node flag", () => {
@@ -51,7 +52,7 @@ test("the actual Firebase SDK loads and rejects invalid tokens with Vercel's con
 function server({ env = {}, verify = async () => ({ uid: "buyer", email_verified: true }), sdk = true, fetch = async () => { throw new Error("Unexpected network request"); } } = {}) {
   let savedAccount;
   const result = load("app/lib/stickers/server.ts", {
-    "server-only": {}, "./catalog": catalog, "./checkout-policy": policy, "./auth-errors": errors, "./payment-errors": paymentErrors,
+    "server-only": {}, "./catalog": catalog, "./checkout-policy": policy, "./auth-errors": errors, "./payment-errors": paymentErrors, "./merchant": merchantPolicy,
     ...(sdk ? {
       "firebase-admin/app": { getApps: () => [], cert: (value) => { savedAccount = value; return {}; }, initializeApp: () => ({}) },
       "firebase-admin/auth": { getAuth: () => ({ verifyIdToken: verify }) },
@@ -112,6 +113,20 @@ test("provider failures keep actionable status codes and never return the privat
     assert.equal(response.code, expected);
     assert.equal(JSON.stringify(response).includes("PRIVATE-PROVIDER-DATA"), false);
     assert.equal(JSON.stringify(response).includes("local-fake-token"), false);
+  }
+});
+
+test("seller verification uses the authenticated provider response rather than payment or browser hints", async () => {
+  const expected = { collectorId: "12345", liveMode: false };
+  for (const [tags, valid] of [[["test_user"], true], [["normal"], false], [undefined, false]]) {
+    const instance = server({ env: { MERCADOPAGO_ACCESS_TOKEN: "local-fake-token" }, fetch: async (url, request) => {
+      assert.equal(url, "https://api.mercadopago.com/users/me");
+      assert.equal(request.headers.Authorization, "Bearer local-fake-token");
+      assert.equal(request.cache, "no-store");
+      return Response.json({ id: 12345, tags });
+    } });
+    if (valid) assert.equal((await instance.verifiedStickerMerchant(expected)).testAccount, true);
+    else await assert.rejects(instance.verifiedStickerMerchant(expected), /merchant-(mode-mismatch|environment-unverified)/);
   }
 });
 
