@@ -5,7 +5,7 @@ export const GIVEAWAY_MILESTONE = {
   demoStickers: null as number | null,
   // Verified total of paid online and WhatsApp sales, excluding refunds and tests.
   // null keeps the goal visible without claiming any sales figure.
-  confirmedStickers: null as 721 | null,
+  confirmedStickers: 720 as number | null,
   // Required with a number: date of the verified count, e.g. "2026-10-28".
-  updatedOn: null as string | null,
+  updatedOn: 28/10/2026 as string | null,
 };
