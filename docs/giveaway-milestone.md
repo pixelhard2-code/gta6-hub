@@ -7,10 +7,12 @@ Sección opcional e independiente en `/sorteos`, debajo del premio y el formular
 Editar solamente `app/components/giveaway-milestone/config.ts` en GitHub y guardar el cambio en `main`. Vercel lo publica con el siguiente despliegue.
 
 - `enabled: true`: visible. `false`: oculta toda la sección sin dejar espacio.
-- `demoStickers: 720`: experimento visual marcado permanentemente como **DEMOSTRACIÓN · DATOS SIMULADOS**. No representa ventas, no modifica los datos reales ni suma comisiones. Con 720 se ve un avance del 72% y faltan 280. Cambiar a `null` para volver al conteo verificado.
-- `confirmedStickers`: total acumulado real de stickers de compras aprobadas, excluyendo pruebas, impagos, devoluciones y contracargos. Cuenta stickers, no pedidos ni pesos recaudados. No reiniciar este valor al completar una meta.
+- `demoStickers: null`: modo de conteo manual verificado, sin aviso de demostración. Para un experimento visual se puede introducir una cifra de prueba, por ejemplo `720`; en ese caso aparecerá **DEMOSTRACIÓN · DATOS SIMULADOS**.
+- `confirmedStickers`: total acumulado real de stickers pagados, incluyendo compras online y ventas por WhatsApp que el organizador haya verificado. Excluir pruebas, reservas sin pago, devoluciones y contracargos; evitar contar dos veces una venta anotada por WhatsApp que también figure en Firebase. Cuenta stickers, no pedidos ni pesos recaudados. No reiniciar este valor al completar una meta.
 - `updatedOn`: fecha del conteo verificado, en formato `AAAA-MM-DD`.
 - `confirmedStickers: null` y `updatedOn: null`: fuera del modo de demostración, muestra el objetivo sin afirmar una cifra de ventas. El total real sigue pendiente hasta que el organizador publique un conteo verificado.
+
+La cifra experimental de 720 se retiró al pasar al modo manual: no se trasladó al conteo de ventas confirmadas. Para publicar el avance, introducir el total comprobado en `confirmedStickers` y la fecha en `updatedOn`. La barra no importa las ventas de WhatsApp a Firestore ni les asigna números; esas ventas deben mantenerse registradas aparte para la participación en el sorteo.
 
 Las cifras siguientes son ejemplos de funcionamiento, no ventas publicadas:
 
