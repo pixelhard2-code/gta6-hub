@@ -21,7 +21,7 @@ function MilestoneContent() {
   const progressId = useId();
   const milestone = readMilestone(GIVEAWAY_MILESTONE);
   if (!milestone) return null;
-  const { displayedStickers, updatedOn, demo, prizes, nextPrizes, progress, remaining, nextGoal } = milestone;
+  const { displayedStickers, updatedOn, demo, prizes, nextPrizes, progress, remaining } = milestone;
   const hasCount = displayedStickers !== null;
 
   return (
@@ -50,7 +50,7 @@ function MilestoneContent() {
         </div>
 
         <div className={styles.progressHeading}>
-          <span id={progressId}>{demo ? "Avance simulado" : hasCount ? "Avance de este tramo" : "Próximo objetivo"}</span>
+          <span id={progressId}>{hasCount ? "Avance" : "Próximo objetivo"}</span>
           <strong>{hasCount ? `${numbers.format(progress)} / ` : ""}{numbers.format(STICKERS_PER_PRIZE)} stickers</strong>
         </div>
         {hasCount ? (
@@ -63,7 +63,7 @@ function MilestoneContent() {
           />
         ) : <div className={styles.emptyTrack} aria-hidden="true" />}
         <p className={styles.goalNote}>
-          {hasCount ? <><strong>{demo ? "En este ejemplo faltan" : "Faltan"} {numbers.format(remaining)} stickers</strong> para llegar a {numbers.format(nextGoal)} y sumar el siguiente premio.</> : "El avance se publicará cuando esté confirmado el conteo de ventas."}
+          {hasCount ? <strong>Faltan {numbers.format(remaining)} tickets</strong> : "El avance se publicará cuando esté confirmado el conteo de ventas."}
         </p>
         <p className={styles.update}>
           {demo ? "Vista experimental: estas cifras no representan ventas reales ni agregan premios al sorteo." : hasCount && updatedOn ? <>Conteo publicado: {numbers.format(displayedStickers)} stickers · <time dateTime={updatedOn}>{dates.format(new Date(`${updatedOn}T00:00:00Z`))}</time></> : "1 premio inicial + 1 adicional por cada meta completada."}
