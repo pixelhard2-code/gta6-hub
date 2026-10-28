@@ -21,13 +21,14 @@ function MilestoneContent() {
   const progressId = useId();
   const milestone = readMilestone(GIVEAWAY_MILESTONE);
   if (!milestone) return null;
-  const { confirmedStickers, updatedOn, prizes, nextPrizes, progress, remaining, nextGoal } = milestone;
-  const hasCount = confirmedStickers !== null;
+  const { displayedStickers, updatedOn, demo, prizes, nextPrizes, progress, remaining, nextGoal } = milestone;
+  const hasCount = displayedStickers !== null;
 
   return (
     <section className={styles.card} aria-labelledby={titleId}>
       <div className={styles.intro}>
         <p className={styles.eyebrow}><span aria-hidden="true" /> META DE LA CREW</p>
+        {demo && <p className={styles.demo}>DEMOSTRACIÓN · DATOS SIMULADOS</p>}
         <h2 id={titleId}>Más stickers.<br /><em>Más PS5 en el sorteo.</em></h2>
         <p className={styles.description}>
           Por cada <strong>1.000 stickers confirmados</strong>, sumamos otra PlayStation 5 + GTA VI al sorteo promocional.
@@ -49,7 +50,7 @@ function MilestoneContent() {
         </div>
 
         <div className={styles.progressHeading}>
-          <span id={progressId}>{hasCount ? "Avance de este tramo" : "Próximo objetivo"}</span>
+          <span id={progressId}>{demo ? "Avance simulado" : hasCount ? "Avance de este tramo" : "Próximo objetivo"}</span>
           <strong>{hasCount ? `${numbers.format(progress)} / ` : ""}{numbers.format(STICKERS_PER_PRIZE)} stickers</strong>
         </div>
         {hasCount ? (
@@ -58,14 +59,14 @@ function MilestoneContent() {
             value={progress}
             max={STICKERS_PER_PRIZE}
             aria-labelledby={progressId}
-            aria-valuetext={`${numbers.format(progress)} de 1.000 stickers en este tramo. Faltan ${numbers.format(remaining)} para sumar otra PS5 con GTA VI.`}
+            aria-valuetext={`${demo ? "Demostración con datos simulados. " : ""}${numbers.format(progress)} de 1.000 stickers en este tramo. Faltan ${numbers.format(remaining)} para sumar otra PS5 con GTA VI.`}
           />
         ) : <div className={styles.emptyTrack} aria-hidden="true" />}
         <p className={styles.goalNote}>
-          {hasCount ? <><strong>Faltan {numbers.format(remaining)} stickers</strong> para llegar a {numbers.format(nextGoal)} y sumar el siguiente premio.</> : "El avance se publicará cuando esté confirmado el conteo de ventas."}
+          {hasCount ? <><strong>{demo ? "En este ejemplo faltan" : "Faltan"} {numbers.format(remaining)} stickers</strong> para llegar a {numbers.format(nextGoal)} y sumar el siguiente premio.</> : "El avance se publicará cuando esté confirmado el conteo de ventas."}
         </p>
         <p className={styles.update}>
-          {hasCount && updatedOn ? <>Conteo publicado: {numbers.format(confirmedStickers)} stickers · <time dateTime={updatedOn}>{dates.format(new Date(`${updatedOn}T00:00:00Z`))}</time></> : "1 premio inicial + 1 adicional por cada meta completada."}
+          {demo ? "Vista experimental: estas cifras no representan ventas reales ni agregan premios al sorteo." : hasCount && updatedOn ? <>Conteo publicado: {numbers.format(displayedStickers)} stickers · <time dateTime={updatedOn}>{dates.format(new Date(`${updatedOn}T00:00:00Z`))}</time></> : "1 premio inicial + 1 adicional por cada meta completada."}
         </p>
       </div>
     </section>

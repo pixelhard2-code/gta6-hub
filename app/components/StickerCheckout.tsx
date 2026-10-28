@@ -6,6 +6,7 @@ import { useCurrentUserProfile } from "@/app/lib/useCurrentUserProfile";
 import { getStickerPackage, validDeliveryEmail } from "@/app/lib/stickers/catalog";
 import { STICKER_SOCIAL_VISIBLE } from "@/app/lib/stickers/visibility";
 import { readBuyerContact, type BuyerContact } from "@/app/lib/stickers/contact";
+import { readReferralCode } from "@/app/lib/stickers/referral-code";
 import AuthModal from "./AuthModal";
 import hub from "./Hub.module.css";
 import styles from "./StickerCollection.module.css";
@@ -15,6 +16,7 @@ export default function StickerCheckout({ packageId, testOnly = false }: { packa
   const { user } = useCurrentUserProfile();
   const [email, setEmail] = useState("");
   const [contact, setContact] = useState<BuyerContact>({ firstName: "", lastName: "", phone: "" });
+  const [referralCode, setReferralCode] = useState("");
   const fieldId = useId();
   const [automatic, setAutomatic] = useState(false);
   const [testMode, setTestMode] = useState(false);
@@ -26,6 +28,11 @@ export default function StickerCheckout({ packageId, testOnly = false }: { packa
   const [statusVersion, setStatusVersion] = useState(0);
   const attemptId = useRef("");
   const pending = useRef(false);
+  useEffect(() => {
+    // A shareable link can suggest a code; the buyer can change or remove it.
+    const value = new URLSearchParams(window.location.search).get("ref");
+    try { setReferralCode(readReferralCode(value) || ""); } catch { setReferralCode(""); }
+  }, []);
   useEffect(() => { setEmail(user?.email || ""); attemptId.current = ""; }, [user?.uid, user?.email]);
   useEffect(() => { setContact({ firstName: "", lastName: "", phone: "" }); }, [user?.uid]);
   useEffect(() => {
@@ -67,10 +74,13 @@ export default function StickerCheckout({ packageId, testOnly = false }: { packa
     let buyerContact: BuyerContact;
     try { buyerContact = readBuyerContact(contact); }
     catch { setError("Completa tu nombre, apellido y un teléfono válido. Si no es de Chile, incluye + y el código de país."); return; }
+    let referral: string | null;
+    try { referral = readReferralCode(referralCode); }
+    catch { setError("Revisa el código de referido o deja el campo vacío para continuar."); return; }
     pending.current = true; setBusy(true); setError("");
     if (!attemptId.current) attemptId.current = crypto.randomUUID();
     try {
-      const response = await fetch("/api/stickers/checkout", { method: "POST", headers: { Authorization: `Bearer ${await user.getIdToken()}`, "Content-Type": "application/json" }, body: JSON.stringify({ packageId, email, buyerContact, attemptId: attemptId.current, expectedMode: testOnly ? "test" : undefined }) });
+      const response = await fetch("/api/stickers/checkout", { method: "POST", headers: { Authorization: `Bearer ${await user.getIdToken()}`, "Content-Type": "application/json" }, body: JSON.stringify({ packageId, email, buyerContact, referralCode: referral, attemptId: attemptId.current, expectedMode: testOnly ? "test" : undefined }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "No pudimos abrir el pago. Inténtalo nuevamente.");
       window.location.assign(result.url);
@@ -86,6 +96,7 @@ export default function StickerCheckout({ packageId, testOnly = false }: { packa
       </div>
       <label className={styles.checkoutEmail} htmlFor={`${fieldId}-email`}>Correo para recibir los stickers<input id={`${fieldId}-email`} name="email" type="email" autoComplete="email" required value={email} maxLength={254} disabled={busy} onChange={(event) => { setEmail(event.target.value); attemptId.current = ""; }} />{quote && <span>{testMode ? "Total simulado" : "Total a pagar"}: {new Intl.NumberFormat("es-CL", { style: "currency", currency: quote.currency }).format(quote.amount)} {quote.currency}</span>}</label>
       <p className={hub.panelNote}>Usaremos estos datos para la entrega y para contactarte por tu compra o el sorteo. No aparecerán en tu perfil público. Para teléfonos fuera de Chile, incluye el código de país.</p>
+      <label className={styles.checkoutEmail} htmlFor={`${fieldId}-referral`}>Código de referido <small>(opcional)</small><input id={`${fieldId}-referral`} name="referralCode" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={32} placeholder="Ej.: juan" value={referralCode} disabled={busy} onChange={(event) => { setReferralCode(event.target.value); attemptId.current = ""; }} /><span>Si alguien te recomendó la Crew, escribe su código. El precio y tus participaciones se mantienen.</span></label>
     </>}
     {loadingStatus ? <button className={hub.primaryButton} type="button" disabled>Preparando compra…</button> : automatic ? <button className={hub.primaryButton} type="button" onClick={() => void checkout()} disabled={busy}><span>{busy ? "Preparando pago…" : testMode ? "Probar Mercado Pago" : `Comprar ${pack.stickers} ${pack.stickers === 1 ? "sticker" : "stickers"}`}</span><span aria-hidden="true">↗</span></button> : testOnly ? <button className={hub.primaryButton} type="button" disabled={Boolean(user)} onClick={() => setAuthOpen(true)}>{user ? "Prueba no habilitada" : "Iniciar sesión para probar"}</button> : <button className={hub.primaryButton} type="button" disabled>Compra temporalmente no disponible</button>}
     {error && <p role="alert" className={styles.error}>{error}</p>}

@@ -1,4 +1,6 @@
 const failures: Record<string, { status: number; message: string }> = {
+  "invalid-referral": { status: 400, message: "Ese código de referido no está disponible. Compruébalo o deja el campo vacío para continuar." },
+  "invalid-referral-allocation": { status: 503, message: "No pudimos completar el registro de la compra. La orden sigue guardada y requiere revisión; no vuelvas a pagar." },
   "invalid-contact": { status: 400, message: "Completa tu nombre, apellido y un teléfono válido. Para números fuera de Chile, incluye + y el código de país." },
   "invalid-entry-allocation": { status: 503, message: "No pudimos verificar los números de esta compra. La orden sigue guardada y requiere revisión; no vuelvas a pagar." },
   "entry-number-collision": { status: 503, message: "La numeración requiere una revisión del servidor. Tu compra sigue guardada; no necesitas volver a pagar." },

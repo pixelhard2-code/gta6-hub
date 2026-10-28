@@ -14,6 +14,19 @@ test("no verified count shows a goal without claiming sales", () => {
   assert.equal(result.nextGoal, 1_000);
 });
 
+test("a demonstration can show 720 without recording confirmed sales or a verification date", () => {
+  const result = readMilestone({ ...config, confirmedStickers: null, updatedOn: null, demoStickers: 720 });
+  assert.equal(result.demo, true);
+  assert.equal(result.displayedStickers, 720);
+  assert.equal(result.confirmedStickers, null);
+  assert.equal(result.updatedOn, null);
+  assert.equal(result.progress, 720);
+  assert.equal(result.remaining, 280);
+  assert.equal(readMilestone({ ...config, demoStickers: 1_000 }).prizes, 2);
+  assert.equal(readMilestone({ ...config, demoStickers: null }).demo, false);
+  for (const demoStickers of [-1, 1.5, "720", true]) assert.equal(readMilestone({ ...config, demoStickers }), null);
+});
+
 test("each thousand adds one complete prize and resets only the displayed progress", () => {
   for (const [total, progress, prizes, remaining, nextGoal] of [
     [0, 0, 1, 1000, 1000], [910, 910, 1, 90, 1000], [999, 999, 1, 1, 1000],

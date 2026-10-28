@@ -26,6 +26,8 @@ const errors = load("app/lib/stickers/auth-errors.ts");
 const paymentErrors = load("app/lib/stickers/payment-errors.ts");
 const merchantPolicy = load("app/lib/stickers/merchant.ts");
 const contactPolicy = load("app/lib/stickers/contact.ts");
+const referralCodePolicy = load("app/lib/stickers/referral-code.ts");
+const referralPolicy = load("app/lib/stickers/referrals.ts", { "./namespace": {}, "./referral-code": referralCodePolicy, "./referral-partners": load("app/lib/stickers/referral-partners.ts") });
 const account = { project_id: "demo-auth", client_email: "server@example.invalid", private_key: "example\\nkey" };
 
 test("the actual Firebase SDK loads and rejects invalid tokens with Vercel's configured Node flag", () => {
@@ -131,12 +133,12 @@ test("seller verification uses the authenticated provider response rather than p
   }
 });
 
-test("checkout rejects missing or invalid contact before provider access or database writes", async () => {
+test("checkout rejects invalid contact or unknown referrals before provider access or database writes", async () => {
   const never = () => { throw new Error("Must not access provider or write an order"); };
   const route = load("app/api/stickers/checkout/route.ts", {
     "@/app/lib/stickers/namespace": {}, "@/app/lib/stickers/commerce": { createStickerOrder: never },
     "@/app/lib/stickers/catalog": catalog, "@/app/lib/stickers/checkout-policy": policy,
-    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy,
+    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy, "@/app/lib/stickers/referrals": referralPolicy,
     "@/app/lib/stickers/server": {
       commerceConfig: () => ({ ready: true, liveMode: true }),
       authenticatedBuyer: async () => ({ uid: "buyer", email_verified: true }),
@@ -148,6 +150,8 @@ test("checkout rejects missing or invalid contact before provider access or data
     const response = await route.POST(new Request("https://example.invalid/api/stickers/checkout", { method: "POST", body: JSON.stringify({ packageId: "basic", email: "buyer@example.invalid", buyerContact }) }));
     assert.equal(response.status, 400); assert.equal((await response.json()).code, "invalid-contact");
   }
+  const response = await route.POST(new Request("https://example.invalid/api/stickers/checkout", { method: "POST", body: JSON.stringify({ packageId: "basic", email: "buyer@example.invalid", buyerContact: { firstName: "Carlos", lastName: "Garrido", phone: "+56912345678" }, referralCode: "unknown-partner" }) }));
+  assert.equal(response.status, 400); assert.equal((await response.json()).code, "invalid-referral");
 });
 
 test("checkout saves normalized contact and ignores forged buyer IDs or entry numbers", async () => {
@@ -160,7 +164,7 @@ test("checkout saves normalized contact and ignores forged buyer IDs or entry nu
       prepareStickerCheckout: async (_db, _id, prepare) => (await prepare(saved)).checkoutUrl,
     },
     "@/app/lib/stickers/catalog": catalog, "@/app/lib/stickers/checkout-policy": policy,
-    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy,
+    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy, "@/app/lib/stickers/referrals": referralPolicy,
     "@/app/lib/stickers/server": {
       commerceConfig: () => ({ ready: true, liveMode: true, currency: "CLP", amounts: { basic: 3000 } }),
       authenticatedBuyer: async () => ({ uid: "authenticated-buyer", email_verified: true }),
@@ -170,10 +174,11 @@ test("checkout saves normalized contact and ignores forged buyer IDs or entry nu
       apiError: error => { throw error; },
     },
   }, {}, { URL, Date });
-  const response = await route.POST(new Request("https://example.invalid/api/stickers/checkout", { method: "POST", body: JSON.stringify({ uid: "forged", packageId: "basic", email: "buyer@example.invalid", buyerContact, entryNumbers: [999999] }) }));
+  const response = await route.POST(new Request("https://example.invalid/api/stickers/checkout", { method: "POST", body: JSON.stringify({ uid: "forged", packageId: "basic", email: "buyer@example.invalid", buyerContact, referralCode: " JUAN ", referrerName: "Forged", commission: 999999, entryNumbers: [999999] }) }));
   assert.equal(response.status, 200); assert.equal(saved.uid, "authenticated-buyer");
   assert.equal(JSON.stringify(saved.buyerContact), JSON.stringify({ firstName: "María", lastName: "Garrido", phone: "+56912345678" }));
   assert.equal("entryNumbers" in saved, false);
+  assert.equal(saved.referralCode, "juan"); assert.equal("referrerName" in saved, false); assert.equal("commission" in saved, false);
   assert.equal(JSON.stringify(preference).includes("Garrido"), false);
   assert.equal(JSON.stringify(preference).includes("912345678"), false);
 });
@@ -183,7 +188,7 @@ test("checkout status separates server setup from invalid sessions and blocks an
   const route = load("app/api/stickers/checkout/route.ts", {
     "@/app/lib/stickers/namespace": {}, "@/app/lib/stickers/commerce": {},
     "@/app/lib/stickers/catalog": catalog, "@/app/lib/stickers/checkout-policy": policy,
-    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy,
+    "@/app/lib/stickers/auth-errors": errors, "@/app/lib/stickers/contact": contactPolicy, "@/app/lib/stickers/referrals": referralPolicy,
     "@/app/lib/stickers/server": {
       commerceConfig: () => ({ ready: true, liveMode: false, currency: "CLP", amounts: { basic: 3000, double: 5000, legend: 10000 } }),
       stickerAdmin: () => { if (failure) throw new Error(failure); return {}; },

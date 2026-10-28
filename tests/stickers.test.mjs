@@ -26,14 +26,88 @@ const buyerContact = { firstName: "María José", lastName: "Garrido Pérez", ph
 const merchant = verifyMerchantAccount({ id: 12345, tags: ["test_user"] }, { collectorId: "12345", liveMode: false });
 const resolveMerchant = async () => merchant;
 let sequence = 70000;
-async function order(packageId = "legend", uid = `buyer-${randomUUID()}`) {
-  const result = await createStickerOrder(db, { uid, packageId, buyerContact, email: "buyer@example.invalid", amount: packageId === "legend" ? 10000 : packageId === "double" ? 5000 : 3000, currency: "CLP", attemptId: randomUUID() });
+async function order(packageId = "legend", uid = `buyer-${randomUUID()}`, referralCode) {
+  const result = await createStickerOrder(db, { uid, packageId, buyerContact, referralCode, email: "buyer@example.invalid", amount: packageId === "legend" ? 10000 : packageId === "double" ? 5000 : 3000, currency: "CLP", attemptId: randomUUID() });
   const payment = { id: String(++sequence), external_reference: result.id, status: "approved", transaction_amount: result.order.amount, transaction_amount_refunded: 0, currency_id: "CLP", collector_id: "12345", live_mode: false };
   return { ...result, uid, payment };
 }
 const collection = async (uid) => (await db.collection("sticker_collections").doc(uid).get()).data();
 const { readBuyerContact } = require(join(process.env.STICKER_TEST_BUILD, "contact.js"));
 const { formatStickerNumber } = require(join(process.env.STICKER_TEST_BUILD, "entry-numbers.js"));
+const { readReferralCode } = require(join(process.env.STICKER_TEST_BUILD, "referral-code.js"));
+const referralTotals = async () => (await db.collection(stickerCollection("sticker_referral_totals")).doc("juan").get()).data() || { approvedOrders: 0, approvedStickers: 0, approvedAmounts: { CLP: 0 } };
+
+test("referrals normalize registered codes, ignore client commissions and cannot change on retry", async () => {
+  assert.equal(readReferralCode("  JUAN  "), "juan");
+  assert.equal(readReferralCode(" "), null);
+  for (const code of ["j", "juan/otro", "<juan>", {}, 720]) assert.throws(() => readReferralCode(code), /invalid-referral/);
+  const input = { uid: "referral-" + randomUUID(), packageId: "basic", email: "buyer@example.invalid", amount: 3000, currency: "CLP", attemptId: randomUUID(), buyerContact };
+  const before = await referralTotals();
+  for (const referralCode of ["unknown-partner", "__proto__", "constructor"]) await assert.rejects(createStickerOrder(db, { ...input, referralCode }), /invalid-referral/);
+  const item = await createStickerOrder(db, { ...input, referralCode: " JUAN ", referrerName: "Forged", commission: 999999, approvedStickers: 720 });
+  const saved = (await db.collection("sticker_orders").doc(item.id).get()).data();
+  assert.equal(saved.referralCode, "juan"); assert.equal(saved.referrerName, "Juan");
+  assert.equal(saved.commission, undefined); assert.equal(saved.approvedStickers, undefined);
+  assert.deepEqual(await referralTotals(), before);
+  await assert.rejects(createStickerOrder(db, { ...input, referralCode: null }), /conflicting-order/);
+  assert.equal((await createStickerOrder(db, { ...input, referralCode: "juan" })).id, item.id);
+});
+
+test("parallel approved referrals count pack quantities once and ignore a second payment", async () => {
+  const before = await referralTotals();
+  const items = await Promise.all(["basic", "double", "legend"].map(pack => order(pack, undefined, "juan")));
+  await Promise.all(items.map(item => applyVerifiedPayment(db, item.payment, merchant)));
+  await Promise.all(items.flatMap(item => [applyVerifiedPayment(db, item.payment, merchant), applyVerifiedPayment(db, item.payment, merchant)]));
+  const totals = await referralTotals();
+  assert.equal(totals.approvedOrders, before.approvedOrders + 3);
+  assert.equal(totals.approvedStickers, before.approvedStickers + 8);
+  assert.equal(totals.approvedAmounts.CLP, before.approvedAmounts.CLP + 18000);
+  for (const item of items) {
+    const sale = (await db.collection("sticker_referral_sales").doc(item.id).get()).data();
+    assert.equal(sale.code, "juan"); assert.equal(sale.quantity, item.order.quantity); assert.equal(sale.credited, true);
+    for (const key of ["email", "phone", "buyerContact"]) assert.equal(key in sale, false);
+  }
+  await applyVerifiedPayment(db, { ...items[0].payment, id: String(++sequence) }, merchant);
+  assert.deepEqual(await referralTotals(), totals);
+});
+
+test("refunds and chargebacks remove the referral sale once without reviving stale approvals", async () => {
+  const before = await referralTotals();
+  const item = await order("legend", undefined, "juan");
+  await applyVerifiedPayment(db, item.payment, merchant);
+  await applyVerifiedPayment(db, { ...item.payment, transaction_amount_refunded: 1 }, merchant);
+  await applyVerifiedPayment(db, { ...item.payment, status: "charged_back" }, merchant);
+  await applyVerifiedPayment(db, item.payment, merchant);
+  const totals = await referralTotals();
+  assert.equal(totals.approvedOrders, before.approvedOrders);
+  assert.equal(totals.approvedStickers, before.approvedStickers);
+  assert.equal(totals.approvedAmounts.CLP, before.approvedAmounts.CLP);
+  assert.equal((await db.collection("sticker_referral_sales").doc(item.id).get()).data().status, "reversed");
+});
+
+test("unpaid, rejected, mismatched and unattributed purchases do not earn referral credit", async () => {
+  const before = await referralTotals();
+  const item = await order("basic", undefined, "juan");
+  for (const status of ["pending", "in_process", "rejected", "cancelled"]) await applyVerifiedPayment(db, { ...item.payment, status }, merchant);
+  assert.equal((await db.collection("sticker_referral_sales").doc(item.id).get()).exists, false);
+  await assert.rejects(applyVerifiedPayment(db, { ...item.payment, transaction_amount: 1 }, merchant), /payment-mismatch-amount/);
+  const direct = await order("double"); await applyVerifiedPayment(db, direct.payment, merchant);
+  assert.deepEqual(await referralTotals(), before);
+});
+
+test("test referral sales stay separate from the real commission ledger", async () => {
+  const previous = process.env.MERCADOPAGO_MODE;
+  const before = (await db.collection("sticker_referral_totals").doc("juan").get()).data();
+  try {
+    process.env.MERCADOPAGO_MODE = "test";
+    const start = await referralTotals();
+    const item = await order("double", undefined, "juan"); await applyVerifiedPayment(db, item.payment, merchant);
+    assert.equal((await referralTotals()).approvedStickers, start.approvedStickers + 2);
+    assert.equal((await db.collection("sticker_test_referral_sales").doc(item.id).get()).data().credited, true);
+    assert.equal((await db.collection("sticker_referral_sales").doc(item.id).get()).exists, false);
+    assert.deepEqual((await db.collection("sticker_referral_totals").doc("juan").get()).data(), before);
+  } finally { if (previous === undefined) delete process.env.MERCADOPAGO_MODE; else process.env.MERCADOPAGO_MODE = previous; }
+});
 
 test("contact is required, normalized and immutable before any payment is created", async () => {
   assert.deepEqual(readBuyerContact({ firstName: "  María  José ", lastName: " O’Neill ", phone: "9 1234-5678" }), { firstName: "María José", lastName: "O’Neill", phone: "+56912345678" });

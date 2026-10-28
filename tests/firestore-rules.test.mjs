@@ -193,7 +193,7 @@ test("comments and counters cannot be forged independently or with unrelated cha
 });
 test("purchase collections, nested records and unknown future collections deny browser access", async () => {
   const { a, alice } = await users();
-  for (const name of ["sticker_orders", "sticker_payments", "sticker_collections", "sticker_leaderboard", "sticker_deliveries", "sticker_checkout_limits", "sticker_entries", "sticker_entry_counters", "sticker_test_entries", "sticker_test_entry_counters", "sticker_future_private", "unknown_private"]) {
+  for (const name of ["sticker_orders", "sticker_payments", "sticker_collections", "sticker_leaderboard", "sticker_deliveries", "sticker_checkout_limits", "sticker_entries", "sticker_entry_counters", "sticker_referral_sales", "sticker_referral_totals", "sticker_test_referral_sales", "sticker_test_referral_totals", "sticker_test_entries", "sticker_test_entry_counters", "sticker_future_private", "unknown_private"]) {
     const path = name + "/" + a;
     await server.doc(path).set({ uid: a, email: "privado@example.com", buyerContact: { firstName: "Nombre", lastName: "Apellido", phone: "+56912345678" }, total: 5 });
     for (const db of [anonymous, alice]) {

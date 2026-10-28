@@ -5,6 +5,7 @@ import { createStickerOrder, prepareStickerCheckout } from "@/app/lib/stickers/c
 import { testBuyerAccess } from "@/app/lib/stickers/checkout-policy";
 import { checkoutAuthAccess, firebaseSdkDiagnostic } from "@/app/lib/stickers/auth-errors";
 import { readBuyerContact } from "@/app/lib/stickers/contact";
+import { activeReferral } from "@/app/lib/stickers/referrals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     if (!pack) throw new Error("invalid-package");
     if (!validDeliveryEmail(body.email)) throw new Error("invalid-email");
     const buyerContact = readBuyerContact(body.buyerContact);
+    const referral = activeReferral(body.referralCode);
     const { db } = stickerAdmin();
     await verifiedStickerMerchant(config);
     const limitRef = db.collection(stickerCollection("sticker_checkout_limits")).doc(buyer.uid);
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
       if (count >= 6) throw new Error("too-many-attempts");
       transaction.set(limitRef, { start: sameWindow ? snap.data()!.start : now, count: count + 1 });
     });
-    const { id, order } = await createStickerOrder(db, { uid: buyer.uid, email: body.email, buyerContact, packageId: pack.id, attemptId: body.attemptId, amount: config.amounts[pack.id], currency: config.currency });
+    const { id, order } = await createStickerOrder(db, { uid: buyer.uid, email: body.email, buyerContact, referralCode: referral?.code, packageId: pack.id, attemptId: body.attemptId, amount: config.amounts[pack.id], currency: config.currency });
     if (order.status === "approved") return Response.json({ orderId: id, url: `${appUrl()}/compra?orden=${id}` });
     const base = appUrl();
     const checkoutUrl = await prepareStickerCheckout(db, id, async (savedOrder) => {

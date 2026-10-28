@@ -7,6 +7,7 @@ import { paymentEnvironmentMatches, type VerifiedMerchant } from "./merchant";
 import { readBuyerContact, type BuyerContact } from "./contact";
 import { planStickerEntries } from "./entries";
 import { readEntryNumbers } from "./entry-numbers";
+import { activeReferral, planReferralSale } from "./referrals";
 
 export interface StickerOrder {
   uid: string;
@@ -21,6 +22,8 @@ export interface StickerOrder {
   checkoutUrl?: string;
   buyerContact?: BuyerContact;
   entryNumbers?: number[];
+  referralCode?: string;
+  referrerName?: string;
 }
 export interface VerifiedPayment {
   id: number | string;
@@ -59,20 +62,22 @@ export function verifyMercadoPagoSignature(secret: string, id: string, requestId
 }
 
 export async function createStickerOrder(database: Firestore, input: {
-  uid: string; email: string; packageId: string; attemptId: string; amount: number; currency: string; buyerContact: BuyerContact;
+  uid: string; email: string; packageId: string; attemptId: string; amount: number; currency: string; buyerContact: BuyerContact; referralCode?: unknown;
 }) {
   const pack = getStickerPackage(input.packageId);
   const buyerContact = readBuyerContact(input.buyerContact);
+  const referral = activeReferral(input.referralCode);
   if (!pack || !validDeliveryEmail(input.email) || !/^[a-f0-9-]{36}$/i.test(input.attemptId) || !Number.isFinite(input.amount) || input.amount <= 0) throw new Error("invalid-order");
   const id = "lc_" + createHash("sha256").update(`${input.uid}:${input.attemptId}`).digest("hex").slice(0, 32);
   const ref = database.collection(stickerCollection("sticker_orders")).doc(id);
-  const order: StickerOrder = { uid: input.uid, email: input.email.trim().toLowerCase(), buyerContact, packageId: pack.id, quantity: pack.stickers, amount: input.amount, currency: input.currency, status: "pending", createdAt: Date.now() };
+  const order: StickerOrder = { uid: input.uid, email: input.email.trim().toLowerCase(), buyerContact, ...(referral ? { referralCode: referral.code, referrerName: referral.name } : {}), packageId: pack.id, quantity: pack.stickers, amount: input.amount, currency: input.currency, status: "pending", createdAt: Date.now() };
   const saved = await database.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     if (snapshot.exists) {
       const previous = snapshot.data() as StickerOrder;
       if (previous.uid !== input.uid || previous.packageId !== pack.id || previous.email !== order.email || previous.amount !== order.amount || previous.currency !== order.currency) throw new Error("conflicting-order");
       if (JSON.stringify(previous.buyerContact) !== JSON.stringify(buyerContact)) throw new Error("conflicting-order");
+      if ((previous.referralCode ?? null) !== (referral?.code ?? null)) throw new Error("conflicting-order");
       return previous;
     }
     transaction.create(ref, order);
@@ -160,7 +165,12 @@ export async function applyVerifiedPayment(database: Firestore, payment: Verifie
     }
     const credited = approved || (wasCredited && !reversed);
     const status = reversed ? "refunded" : credited ? "approved" : payment.status;
+    const referralSale = order.referralCode && (credited || reversed) ? await planReferralSale(database, transaction, {
+      orderId, paymentId: String(payment.id), code: order.referralCode, name: order.referrerName || order.referralCode,
+      quantity: order.quantity, amount: order.amount, currency: order.currency, credited, now,
+    }) : null;
     allocation?.commit();
+    referralSale?.commit();
     transaction.set(paymentRef, { orderId, uid: order.uid, status, credited, updatedAt: now });
     transaction.update(orderRef, { status, ...(credited || reversed ? { paymentId: String(payment.id) } : {}), ...(allocation?.numbers.length ? { entryNumbers: allocation.numbers } : {}), updatedAt: now });
     if (credited !== wasCredited) {

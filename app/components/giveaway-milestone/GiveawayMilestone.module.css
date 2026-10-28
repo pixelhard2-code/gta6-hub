@@ -15,6 +15,7 @@
 .intro, .goal { min-width: 0; }
 .eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: #f3b5a7; font: 10px/1.5 monospace; letter-spacing: .12em; }
 .eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: #f3b5a7; }
+.demo { width: fit-content; margin: -4px 0 14px; padding: 5px 8px; border: 1px solid #85645e; border-radius: 4px; color: #fbd4c9; background: #382b30; font: 9px/1.5 monospace; letter-spacing: .06em; }
 .intro h2 { margin: 0; font-size: clamp(22px, 3vw, 29px); font-weight: 800; line-height: 1.16; letter-spacing: -.04em; }
 .intro h2 em { color: #f1adc8; font-style: normal; }
 .description { max-width: 390px; margin: 14px 0 0; font-size: 13px; line-height: 1.75; color: #b9b4c3; }
